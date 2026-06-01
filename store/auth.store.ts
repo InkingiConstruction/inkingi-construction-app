@@ -17,6 +17,7 @@ export interface User {
   role?: UserRole;
   kycStatus?: string | null;
   kycRejectionReason?: string | null;
+  notificationPrefs?: Record<string, boolean> | null;
   avatar?: string | null;
   image?: string | null;
   bio?: string | null;
@@ -33,7 +34,9 @@ interface AuthState {
   updateProfile: (data: {
     name: string;
     username?: string;
-    phone?: string;
+    phoneNumber?: string;
+    displayUsername?: string;
+    notificationPrefs?: Record<string, boolean>;
     bio?: string;
   }) => Promise<void>;
 }
@@ -127,13 +130,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   updateProfile: async (data) => {
     set({ loading: true });
     try {
-      const response = await api.patch<User>(ENDPOINTS.AUTH.UPDATE_PROFILE, {
+      const response = await api.patch<{ user: User }>(ENDPOINTS.AUTH.UPDATE_PROFILE, {
         name: data.name,
         username: data.username,
-        phone: data.phone,
+        displayUsername: data.displayUsername,
+        phoneNumber: data.phoneNumber,
+        notificationPrefs: data.notificationPrefs,
         bio: data.bio,
       });
-      set({ user: response.data, isAuthenticated: true });
+      set({ user: response.data.user, isAuthenticated: true });
     } finally {
       set({ loading: false });
     }

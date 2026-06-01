@@ -1,15 +1,21 @@
-import { Stack } from "expo-router";
+import { RoleTabs } from "@/components/role-tabs";
 
 export default function RootLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="assignments" />
-      <Stack.Screen name="projects" />
-      <Stack.Screen name="milestones" />
-      <Stack.Screen name="boq" />
-      <Stack.Screen name="progress" />
-      <Stack.Screen name="rfqs" />
-    </Stack>
+    <RoleTabs
+      tabs={[
+        { name: "index", title: "Home", icon: "home-outline" },
+        { name: "assignments", title: "Assign", icon: "briefcase-outline" },
+        { name: "projects", title: "Projects", icon: "business-outline" },
+        { name: "milestones", title: "Stages", icon: "flag-outline" },
+        { name: "boq", title: "BOQ", icon: "list-outline" },
+        { name: "progress", title: "Progress", icon: "camera-outline" },
+        { name: "rfqs", title: "RFQs", icon: "receipt-outline" },
+        { name: "messages", title: "Chat", icon: "chatbubbles-outline" },
+        { name: "notifications", title: "Alerts", icon: "notifications-outline" },
+        { name: "profile", title: "Profile", icon: "person-circle-outline" },
+        { name: "settings", title: "Settings", icon: "settings-outline" },
+      ]}
+    />
   );
 }

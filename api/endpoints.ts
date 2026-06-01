@@ -11,4 +11,12 @@ export const ENDPOINTS = {
     CHANGE_PASSWORD: "/auth/change-password",
     UPDATE_PROFILE: "/users/me",
   },
+  NOTIFICATIONS: {
+    LIST: "/notifications",
+    DETAIL: (id: string) => `/notifications/${id}`,
+  },
+  MESSAGES: {
+    LIST: "/messages",
+    CREATE: "/messages",
+  },
 };
