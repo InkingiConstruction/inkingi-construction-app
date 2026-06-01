@@ -12,7 +12,11 @@ export default function RootLayout() {
         { name: "progress", title: "Progress", icon: "camera-outline" },
         { name: "rfqs", title: "RFQs", icon: "receipt-outline" },
         { name: "messages", title: "Chat", icon: "chatbubbles-outline" },
-        { name: "notifications", title: "Alerts", icon: "notifications-outline" },
+        {
+          name: "notifications",
+          title: "Alerts",
+          icon: "notifications-outline",
+        },
         { name: "profile", title: "Profile", icon: "person-circle-outline" },
         { name: "settings", title: "Settings", icon: "settings-outline" },
       ]}

@@ -13,9 +13,10 @@ export type RoleTab = {
 
 type RoleTabsProps = {
   tabs: RoleTab[];
+  hiddenRoutes?: string[];
 };
 
-export function RoleTabs({ tabs }: RoleTabsProps) {
+export function RoleTabs({ tabs, hiddenRoutes = [] }: RoleTabsProps) {
   const { colors, isDark } = useThemeColors();
 
   return (
@@ -58,6 +59,13 @@ export function RoleTabs({ tabs }: RoleTabsProps) {
               />
             ),
           }}
+        />
+      ))}
+      {hiddenRoutes.map((name) => (
+        <Tabs.Screen
+          key={name}
+          name={name}
+          options={{ href: null }}
         />
       ))}
     </Tabs>
