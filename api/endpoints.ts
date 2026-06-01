@@ -23,6 +23,18 @@ export const ENDPOINTS = {
     LIST: "/projects",
     DETAIL: (id: string) => `/projects/${id}`,
   },
+  PROJECT_MEMBERS: {
+    LIST: "/project-members",
+    CREATE: "/project-members",
+    DETAIL: (id: string) => `/project-members/${id}`,
+    ACCEPT: (id: string) => `/project-members/${id}/accept`,
+    REJECT: (id: string) => `/project-members/${id}/reject`,
+  },
+  USERS: {
+    ENGINEERS: "/users/engineers",
+    SUPERVISORS: "/users/supervisors",
+    SUPPLIERS: "/users/suppliers",
+  },
   MILESTONES: {
     LIST: "/milestones",
     DETAIL: (id: string) => `/milestones/${id}`,
@@ -53,5 +65,16 @@ export const ENDPOINTS = {
     LIST: "/deliveries",
     CREATE: "/deliveries",
     DETAIL: (id: string) => `/deliveries/${id}`,
+  },
+  ESCROW_ACCOUNTS: {
+    LIST: "/escrow-accounts",
+    DETAIL: (id: string) => `/escrow-accounts/${id}`,
+    DEPOSIT_MTN: (id: string) => `/escrow-accounts/${id}/deposit-mtn`,
+    DEPOSIT_STRIPE: (id: string) => `/escrow-accounts/${id}/deposit-stripe`,
+  },
+  TRANSACTIONS: {
+    LIST: "/transactions",
+    CREATE: "/transactions",
+    DETAIL: (id: string) => `/transactions/${id}`,
   },
 };

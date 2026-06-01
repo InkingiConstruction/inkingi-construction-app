@@ -1,34 +1,90 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { SupervisorTopBar } from "@/components/supervisor/supervisor-top-bar";
-import { SupervisorProject } from "@/components/supervisor/supervisor-types";
+import { SupervisorAssignment, SupervisorProject } from "@/components/supervisor/supervisor-types";
 
 export default function SupervisorProjects() {
+  const queryClient = useQueryClient();
   const projectsQuery = useQuery({
     queryKey: ["supervisor-projects"],
     queryFn: async () => {
       const response = await api.get<SupervisorProject[]>(ENDPOINTS.PROJECTS.LIST);
       return response.data;
     },
+    refetchOnMount: "always",
   });
+  const invitationsQuery = useQuery({
+    queryKey: ["supervisor-project-invitations"],
+    queryFn: async () => {
+      const response = await api.get<SupervisorAssignment[]>(ENDPOINTS.PROJECT_MEMBERS.LIST, {
+        params: { status: "pending" },
+      });
+      return response.data.filter((assignment) => assignment.role === "supervisor");
+    },
+    refetchOnMount: "always",
+  });
+
+  const respondMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "accept" | "reject" }) => {
+      const endpoint =
+        action === "accept"
+          ? ENDPOINTS.PROJECT_MEMBERS.ACCEPT(id)
+          : ENDPOINTS.PROJECT_MEMBERS.REJECT(id);
+      return api.post(endpoint);
+    },
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["supervisor-project-invitations"] }),
+        queryClient.invalidateQueries({ queryKey: ["supervisor-projects"] }),
+      ]);
+      Alert.alert(
+        variables.action === "accept" ? "Project accepted" : "Project declined",
+        variables.action === "accept"
+          ? "The project is now available in your supervisor workspace."
+          : "The client will see that this invitation was declined.",
+      );
+    },
+    onError: (error) => Alert.alert("Action failed", error instanceof Error ? error.message : "Try again."),
+  });
+
+  const invitations = invitationsQuery.data || [];
+  const projects = projectsQuery.data || [];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <FlatList
-        data={projectsQuery.data || []}
+        data={projects}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}
         ListHeaderComponent={
-          <SupervisorTopBar
-            title="Projects"
-            subtitle="Open a project to inspect milestones or review uploaded progress."
-          />
+          <View>
+            <SupervisorTopBar
+              title="Projects"
+              subtitle="Accept project invitations first. Accepted projects are ready for inspection and review."
+            />
+            {invitations.length > 0 ? (
+              <View style={{ gap: 10, marginBottom: 14 }}>
+                <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900" }}>
+                  Pending invitations
+                </Text>
+                {invitations.map((assignment) => (
+                  <InvitationCard
+                    key={assignment.id}
+                    assignment={assignment}
+                    loading={respondMutation.isPending}
+                    onAccept={() => respondMutation.mutate({ id: assignment.id, action: "accept" })}
+                    onReject={() => respondMutation.mutate({ id: assignment.id, action: "reject" })}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </View>
         }
         ListEmptyComponent={
           projectsQuery.isLoading ? (
@@ -39,14 +95,79 @@ export default function SupervisorProjects() {
         }
         refreshControl={
           <RefreshControl
-            refreshing={projectsQuery.isRefetching}
-            onRefresh={projectsQuery.refetch}
+            refreshing={projectsQuery.isRefetching || invitationsQuery.isRefetching}
+            onRefresh={() => {
+              projectsQuery.refetch();
+              invitationsQuery.refetch();
+            }}
             tintColor={COLORS.PRIMARY}
           />
         }
         renderItem={({ item }) => <ProjectCard project={item} />}
       />
     </SafeAreaView>
+  );
+}
+
+function InvitationCard({
+  assignment,
+  loading,
+  onAccept,
+  onReject,
+}: {
+  assignment: SupervisorAssignment;
+  loading: boolean;
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  const project = assignment.project;
+
+  return (
+    <View
+      style={{
+        backgroundColor: COLORS.SURFACE,
+        borderColor: COLORS.PRIMARY,
+        borderRadius: 10,
+        borderWidth: 1,
+        padding: 16,
+      }}
+    >
+      <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>INVITED PROJECT</Text>
+      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900", marginTop: 6 }}>
+        {project?.name || "Project invitation"}
+      </Text>
+      <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
+        {project?.address || project?.description || "Client is requesting your supervision before inspections can begin."}
+      </Text>
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+        <Pressable
+          disabled={loading}
+          onPress={onReject}
+          style={{
+            alignItems: "center",
+            backgroundColor: COLORS.MUTED,
+            borderRadius: 8,
+            flex: 1,
+            paddingVertical: 12,
+          }}
+        >
+          <Text style={{ color: COLORS.ERROR, fontWeight: "900" }}>Reject</Text>
+        </Pressable>
+        <Pressable
+          disabled={loading}
+          onPress={onAccept}
+          style={{
+            alignItems: "center",
+            backgroundColor: COLORS.PRIMARY,
+            borderRadius: 8,
+            flex: 1,
+            paddingVertical: 12,
+          }}
+        >
+          <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>Accept</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -171,7 +292,7 @@ function EmptyProjects() {
         No assigned projects
       </Text>
       <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20, marginTop: 6, textAlign: "center" }}>
-        Projects appear here after a client assigns you and the assignment is accepted.
+        Projects appear here only after you accept the client invitation.
       </Text>
     </View>
   );

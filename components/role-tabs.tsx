@@ -18,6 +18,8 @@ type RoleTabsProps = {
 
 export function RoleTabs({ tabs, hiddenRoutes = [] }: RoleTabsProps) {
   const { colors, isDark } = useThemeColors();
+  const tabNames = new Set(tabs.map((tab) => tab.name));
+  const hiddenOnlyRoutes = hiddenRoutes.filter((name) => !tabNames.has(name));
 
   return (
     <Tabs
@@ -61,7 +63,7 @@ export function RoleTabs({ tabs, hiddenRoutes = [] }: RoleTabsProps) {
           }}
         />
       ))}
-      {hiddenRoutes.map((name) => (
+      {hiddenOnlyRoutes.map((name) => (
         <Tabs.Screen
           key={name}
           name={name}

@@ -18,6 +18,16 @@ export type SupervisorProject = {
   createdAt?: string;
 };
 
+export type SupervisorAssignment = {
+  id: string;
+  projectId: string;
+  userId: string;
+  role: string;
+  status: string;
+  invitedAt?: string;
+  project?: SupervisorProject;
+};
+
 export type SupervisorMilestone = {
   id: string;
   projectId: string;
