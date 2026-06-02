@@ -6,6 +6,7 @@ import OTPInput from '../OTPInput';
 import { api } from '@/api/api';
 import { ENDPOINTS } from '@/api/endpoints';
 import { createStyles } from '@/utils/createStyles';
+import { useAuthStore, type User } from '@/store/auth.store';
 
 interface EmailVerificationStepProps {
   data: any;
@@ -16,6 +17,7 @@ interface EmailVerificationStepProps {
 
 export default function EmailVerificationStep({ data, onUpdate, onNext, onPrev }: EmailVerificationStepProps) {
   const email = data.basic?.email || '';
+  const setVerifiedUser = useAuthStore((state) => state.setVerifiedUser);
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -34,16 +36,15 @@ export default function EmailVerificationStep({ data, onUpdate, onNext, onPrev }
     
     try {
       // Hit actual verify email endpoint
-      await api.post(ENDPOINTS.AUTH.VERIFY_EMAIL, {
+      const response = await api.post<{ message: string; user: User }>(ENDPOINTS.AUTH.VERIFY_EMAIL, {
         email: email.trim().toLowerCase(),
         otp: otp.trim(),
       });
 
+      setVerifiedUser(response.data.user);
       setMessage('Email verified successfully!');
-      setTimeout(() => {
-        onUpdate({ emailVerified: true, phoneVerified: true });
-        onNext();
-      }, 1000);
+      onUpdate({ emailVerified: true, phoneVerified: true });
+      onNext();
       
     } catch (err: any) {
       console.error('Email verification error:', err);

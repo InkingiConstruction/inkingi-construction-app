@@ -35,6 +35,7 @@ interface AuthState {
   logout: () => Promise<void>;
   register: (name: string, email: string, password: string, role?: string, phoneNumber?: string) => Promise<void>;
   fetchUser: () => Promise<void>;
+  setVerifiedUser: (user: User) => void;
   updateProfile: (data: {
     name: string;
     username?: string;
@@ -145,6 +146,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     } finally {
       set({ loading: false });
     }
+  },
+
+  setVerifiedUser: (user) => {
+    set({ user, isAuthenticated: true });
   },
 
   updateProfile: async (data) => {
