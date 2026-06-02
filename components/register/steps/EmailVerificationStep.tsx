@@ -47,16 +47,7 @@ export default function EmailVerificationStep({ data, onUpdate, onNext, onPrev }
       
     } catch (err: any) {
       console.error('Email verification error:', err);
-      // Fallback/Mock behavior in development if API returns error (e.g. 111111 for testing)
-      if (otp === '123456' || otp === '111111') {
-        setMessage('Email verified (Demo Mode)');
-        setTimeout(() => {
-          onUpdate({ emailVerified: true, phoneVerified: true });
-          onNext();
-        }, 1000);
-      } else {
-        setError(err?.response?.data?.message || err?.message || 'Verification failed. Please try again.');
-      }
+      setError(err?.response?.data?.message || err?.message || 'Verification failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -74,7 +65,7 @@ export default function EmailVerificationStep({ data, onUpdate, onNext, onPrev }
       setMessage('A new OTP has been sent to your email.');
     } catch (err: any) {
       console.error('Resend OTP error:', err);
-      setMessage('Mock OTP sent successfully! (Check inbox or use 123456)');
+      setError(err?.response?.data?.message || err?.message || 'Failed to resend OTP. Please try again.');
     } finally {
       setResending(false);
     }
