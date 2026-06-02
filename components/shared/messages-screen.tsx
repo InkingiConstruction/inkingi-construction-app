@@ -32,57 +32,104 @@ type ProjectMessage = {
     name: string;
     role: string;
   };
+  recipient?: {
+    id: string;
+    name: string;
+    role: string;
+  } | null;
   project?: {
     name?: string;
-  };
+  } | null;
 };
 
-type ChatProject = {
+type ChatParticipant = {
   id: string;
   name: string;
+  email: string;
+  role: string;
+  image?: string | null;
+};
+
+type ChatConversation = {
+  id: string;
+  type: "group" | "direct";
+  projectId?: string;
+  recipientId?: string;
+  title: string;
+  subtitle?: string;
+  participants: ChatParticipant[];
+  lastMessage?: ProjectMessage | null;
 };
 
 export function MessagesScreen() {
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
-  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedConversationId, setSelectedConversationId] = useState("");
   const [content, setContent] = useState("");
   const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [error, setError] = useState("");
+  const [showMentions, setShowMentions] = useState(false);
 
-  const projectsQuery = useQuery({
-    queryKey: ["chat-projects"],
+  const conversationsQuery = useQuery({
+    queryKey: ["chat-conversations"],
     queryFn: async () => {
-      const response = await api.get<ChatProject[]>(ENDPOINTS.PROJECTS.LIST);
+      const response = await api.get<ChatConversation[]>(ENDPOINTS.MESSAGES.CONVERSATIONS);
       return response.data;
     },
   });
 
-  const projects = projectsQuery.data || [];
-  const activeProjectId = selectedProjectId || projects[0]?.id || "";
-  const selectedProject = projects.find((project) => project.id === activeProjectId);
+  const conversations = conversationsQuery.data || [];
+  const activeConversation =
+    conversations.find((conversation) => conversation.id === selectedConversationId) ||
+    conversations[0];
 
   const messagesQuery = useQuery({
-    queryKey: ["messages", activeProjectId],
-    enabled: Boolean(activeProjectId),
+    queryKey: ["messages", activeConversation?.id],
+    enabled: Boolean(activeConversation),
     queryFn: async () => {
       const response = await api.get<ProjectMessage[]>(ENDPOINTS.MESSAGES.LIST, {
-        params: { projectId: activeProjectId },
+        params:
+          activeConversation?.type === "group"
+            ? { projectId: activeConversation.projectId }
+            : { recipientId: activeConversation?.recipientId },
       });
       return response.data;
     },
   });
 
   const messages = messagesQuery.data || [];
-  const activeProject = useMemo(() => {
-    return selectedProject?.name || messages[0]?.project?.name || "Select Project";
-  }, [messages, selectedProject]);
+  const activeTitle = activeConversation?.title || "Select Chat";
+  const activeSubtitle = useMemo(() => {
+    if (!activeConversation) return "No conversation selected";
+    if (activeConversation.type === "direct") return activeConversation.subtitle || "Direct message";
+    const members = activeConversation.participants
+      .filter((participant) => participant.id !== user?.id)
+      .map((participant) => participant.name || participant.email)
+      .slice(0, 3);
+    return members.length ? members.join(", ") : "Project group";
+  }, [activeConversation, user?.id]);
+  const mentionParticipants = useMemo(() => {
+    return (activeConversation?.participants || []).filter(
+      (participant) => participant.id !== user?.id,
+    );
+  }, [activeConversation?.participants, user?.id]);
+
+  const insertMention = (participant: ChatParticipant) => {
+    const name = participant.name || participant.email;
+    const mention = `@${name.split(" ")[0]}`;
+    const spacer = content.trim().length ? " " : "";
+
+    setContent((current) => `${current}${spacer}${mention} `);
+    setShowMentions(false);
+  };
 
   const sendMessage = useMutation({
     mutationFn: () => {
       if (!image) {
         return api.post(ENDPOINTS.MESSAGES.CREATE, {
-          projectId: activeProjectId,
+          ...(activeConversation?.type === "group"
+            ? { projectId: activeConversation.projectId }
+            : { recipientId: activeConversation?.recipientId }),
           content: content.trim(),
         });
       }
@@ -91,7 +138,11 @@ export function MessagesScreen() {
       const fileName = image.fileName || image.uri.split("/").pop() || "chat-image.jpg";
       const mimeType = image.mimeType || "image/jpeg";
 
-      formData.append("projectId", activeProjectId);
+      if (activeConversation?.type === "group") {
+        formData.append("projectId", String(activeConversation.projectId));
+      } else {
+        formData.append("recipientId", String(activeConversation?.recipientId));
+      }
       formData.append("content", content.trim() || "Photo attachment");
       formData.append("image", {
         uri: image.uri,
@@ -110,6 +161,7 @@ export function MessagesScreen() {
       setImage(null);
       setError("");
       queryClient.invalidateQueries({ queryKey: ["messages"] });
+      queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
     },
     onError: (err) => {
       setError(err instanceof Error ? err.message : "Failed to send message");
@@ -117,8 +169,8 @@ export function MessagesScreen() {
   });
 
   const submit = () => {
-    if (!activeProjectId || (!content.trim() && !image)) {
-      setError("Select a project and add a message or image");
+    if (!activeConversation || (!content.trim() && !image)) {
+      setError("Select a chat and add a message or image");
       return;
     }
 
@@ -171,23 +223,24 @@ export function MessagesScreen() {
                 alignItems: "center",
                 backgroundColor: "#EEF2F7",
                 borderRadius: 18,
-                flexDirection: "row",
                 gap: 6,
                 paddingHorizontal: 18,
                 paddingVertical: 10,
               }}
             >
               <Text numberOfLines={1} style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "800", maxWidth: 150 }}>
-                {activeProject}
+                {activeTitle}
               </Text>
-              <Ionicons name="chevron-down" size={16} color={COLORS.TEXT_SECONDARY} />
+              <Text numberOfLines={1} style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11, maxWidth: 180 }}>
+                {activeConversation?.type === "group" ? "Group" : "Direct"} · {activeSubtitle}
+              </Text>
             </View>
             <Pressable style={headerButtonStyle}>
               <Ionicons name="ellipsis-horizontal" size={21} color={COLORS.TEXT_PRIMARY} />
             </Pressable>
           </View>
 
-          {projectsQuery.isLoading || messagesQuery.isLoading ? (
+          {conversationsQuery.isLoading || messagesQuery.isLoading ? (
             <View style={{ alignItems: "center", flex: 1, justifyContent: "center" }}>
               <ActivityIndicator color={COLORS.PRIMARY} />
             </View>
@@ -217,7 +270,7 @@ export function MessagesScreen() {
                     No messages yet
                   </Text>
                   <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20, marginTop: 6, textAlign: "center" }}>
-                    Select one of your projects and start the site conversation.
+                    Open a project group or direct chat and start the conversation.
                   </Text>
                 </View>
               }
@@ -235,13 +288,8 @@ export function MessagesScreen() {
               position: "absolute",
               right: 14,
               zIndex: 3,
-            }}
-          >
-            <View style={{ alignItems: "flex-end", gap: 8, marginBottom: 10 }}>
-              <QuickChip label="Learn more" color="#DCFCE7" />
-              <QuickChip label="Change request" color="#F5E8D8" />
-              <QuickChip label="Successful answer" color="#E0F2FE" />
-            </View>
+              }}
+            >
             <View
               style={{
                 backgroundColor: COLORS.SURFACE,
@@ -255,28 +303,36 @@ export function MessagesScreen() {
               }}
             >
               <FlatList
-                data={projects}
+                data={conversations}
                 horizontal
                 keyExtractor={(item) => item.id}
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: 8, paddingBottom: 8 }}
                 ListEmptyComponent={
                   <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 12, paddingHorizontal: 8 }}>
-                    No accessible projects
+                    No chats available
                   </Text>
                 }
                 renderItem={({ item }) => {
-                  const selected = item.id === activeProjectId;
+                  const selected = item.id === activeConversation?.id;
                   return (
                     <Pressable
-                      onPress={() => setSelectedProjectId(item.id)}
+                      onPress={() => setSelectedConversationId(item.id)}
                       style={{
                         backgroundColor: selected ? COLORS.PRIMARY : "#EEF2F7",
                         borderRadius: 14,
+                        flexDirection: "row",
+                        gap: 6,
+                        alignItems: "center",
                         paddingHorizontal: 12,
                         paddingVertical: 8,
                       }}
                     >
+                      <Ionicons
+                        name={item.type === "group" ? "people-outline" : "person-outline"}
+                        size={14}
+                        color={selected ? COLORS.TEXT_WHITE : COLORS.TEXT_PRIMARY}
+                      />
                       <Text
                         numberOfLines={1}
                         style={{
@@ -286,12 +342,66 @@ export function MessagesScreen() {
                           maxWidth: 130,
                         }}
                       >
-                        {item.name}
+                        {item.title}
                       </Text>
                     </Pressable>
                   );
                 }}
               />
+              {showMentions ? (
+                <FlatList
+                  data={mentionParticipants}
+                  horizontal
+                  keyExtractor={(item) => item.id}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingBottom: 8 }}
+                  ListEmptyComponent={
+                    <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 12, paddingHorizontal: 8 }}>
+                      No one to tag in this chat
+                    </Text>
+                  }
+                  renderItem={({ item }) => (
+                    <Pressable
+                      onPress={() => insertMention(item)}
+                      style={{
+                        alignItems: "center",
+                        backgroundColor: COLORS.PRIMARY_LIGHT,
+                        borderRadius: 14,
+                        flexDirection: "row",
+                        gap: 7,
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                      }}
+                    >
+                      <View
+                        style={{
+                          alignItems: "center",
+                          backgroundColor: COLORS.SURFACE,
+                          borderRadius: 11,
+                          height: 22,
+                          justifyContent: "center",
+                          width: 22,
+                        }}
+                      >
+                        <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 10, fontWeight: "900" }}>
+                          {(item.name || item.email).slice(0, 1).toUpperCase()}
+                        </Text>
+                      </View>
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          color: COLORS.PRIMARY_DARK,
+                          fontSize: 12,
+                          fontWeight: "900",
+                          maxWidth: 120,
+                        }}
+                      >
+                        {item.name || item.email}
+                      </Text>
+                    </Pressable>
+                  )}
+                />
+              ) : null}
               {image ? (
                 <View
                   style={{
@@ -319,6 +429,19 @@ export function MessagesScreen() {
               <View style={{ alignItems: "center", flexDirection: "row", gap: 8 }}>
                 <Pressable onPress={pickImage}>
                   <Ionicons name="attach-outline" size={22} color={COLORS.TEXT_PRIMARY} />
+                </Pressable>
+                <Pressable
+                  onPress={() => setShowMentions((current) => !current)}
+                  style={{
+                    alignItems: "center",
+                    backgroundColor: showMentions ? COLORS.PRIMARY_LIGHT : "transparent",
+                    borderRadius: 14,
+                    height: 28,
+                    justifyContent: "center",
+                    width: 28,
+                  }}
+                >
+                  <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 18, fontWeight: "900" }}>@</Text>
                 </Pressable>
                 <TextInput
                   multiline
@@ -410,22 +533,6 @@ function ChatBubble({ item, isMine }: { item: ProjectMessage; isMine: boolean })
         {new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
       </Text>
     </View>
-  );
-}
-
-function QuickChip({ label, color }: { label: string; color: string }) {
-  return (
-    <Pressable
-      onPress={() => {}}
-      style={{
-        backgroundColor: color,
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 9,
-      }}
-    >
-      <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "700" }}>{label}</Text>
-    </Pressable>
   );
 }
 
