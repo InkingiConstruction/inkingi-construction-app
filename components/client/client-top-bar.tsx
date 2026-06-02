@@ -35,7 +35,7 @@ export function ClientTopBar({ title, subtitle, back = false }: ClientTopBarProp
           )}
           <View style={{ flex: 1 }}>
             <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>
-              {back ? "BACK TO WORKSPACE" : "CLIENT WORKSPACE"}
+              {back ? "BACK TO WORKSPACE" : "WORKSPACE"}
             </Text>
             <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900" }}>
               {title}
@@ -45,7 +45,6 @@ export function ClientTopBar({ title, subtitle, back = false }: ClientTopBarProp
         {!back && (
           <View style={{ flexDirection: "row", gap: 8 }}>
             <TopButton icon="notifications-outline" onPress={() => router.push("/(client)/notifications")} />
-            <TopButton icon="person-circle-outline" onPress={() => router.push("/(client)/profile")} />
             <TopButton icon="settings-outline" onPress={() => router.push("/(client)/settings")} />
           </View>
         )}

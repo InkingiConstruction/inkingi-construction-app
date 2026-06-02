@@ -70,14 +70,14 @@ export default function ClientIndex() {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
         <ClientTopBar
           title="Dashboard"
-          subtitle="A clean control room for projects, teams, progress, and escrow."
+          // subtitle="A clean control room for projects, teams, progress, and escrow."
         />
 
         {loading ? (
           <ActivityIndicator color={COLORS.PRIMARY} style={{ marginTop: 70 }} />
         ) : (
           <View style={{ gap: 16 }}>
-            <View style={{ backgroundColor: COLORS.INK, borderRadius: 12, overflow: "hidden" }}>
+            {/* <View style={{ backgroundColor: COLORS.INK, borderRadius: 12, overflow: "hidden" }}>
               <View style={{ padding: 18 }}>
                 <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 12, fontWeight: "900", opacity: 0.75 }}>
                   NEXT CLIENT ACTION
@@ -121,7 +121,7 @@ export default function ClientIndex() {
                   <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>Continue</Text>
                 </Pressable>
               </View>
-            </View>
+            </View> */}
 
             {/* Metrics Chips Row */}
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
@@ -133,7 +133,7 @@ export default function ClientIndex() {
                   borderWidth: 1,
                   borderRadius: 10,
                   flex: 1,
-                  minWidth: "45%",
+                  minWidth: "40%",
                   padding: 12,
                   flexDirection: "row",
                   alignItems: "center",
@@ -157,7 +157,7 @@ export default function ClientIndex() {
                   borderWidth: 1,
                   borderRadius: 10,
                   flex: 1,
-                  minWidth: "45%",
+                  minWidth: "40%",
                   padding: 12,
                   flexDirection: "row",
                   alignItems: "center",
@@ -181,7 +181,7 @@ export default function ClientIndex() {
                   borderWidth: 1,
                   borderRadius: 10,
                   flex: 1,
-                  minWidth: "45%",
+                  minWidth: "40%",
                   padding: 12,
                   flexDirection: "row",
                   alignItems: "center",
@@ -205,7 +205,7 @@ export default function ClientIndex() {
                   borderWidth: 1,
                   borderRadius: 10,
                   flex: 1,
-                  minWidth: "45%",
+                  minWidth: "40%",
                   padding: 12,
                   flexDirection: "row",
                   alignItems: "center",
@@ -320,7 +320,7 @@ export default function ClientIndex() {
 
             <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, padding: 16 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
-                <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900" }}>Portfolio</Text>
+                <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 17, fontWeight: "900" }}>Recent Projects</Text>
                 <Text style={{ color: COLORS.PRIMARY, fontWeight: "900" }}>
                   {totalEscrow.toLocaleString()} RWF
                 </Text>

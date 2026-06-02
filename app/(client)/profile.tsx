@@ -1,3 +1,6 @@
-import { ProfileScreen } from "@/components/shared/profile-screen";
+import { Redirect } from "expo-router";
 
-export default ProfileScreen;
+// Profile is now consolidated into the Settings screen.
+export default function ProfileRedirect() {
+  return <Redirect href="/(client)/settings" />;
+}

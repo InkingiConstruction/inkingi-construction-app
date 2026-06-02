@@ -263,7 +263,7 @@ export default function ClientPayments() {
         </View>
 
         {/* ── Linked Accounts (Bank of Kigali & Mobile Money) ── */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
+        {/* <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
           <Text style={{ fontSize: 17, fontWeight: '700', color: COLORS.TEXT_PRIMARY, marginBottom: 10 }}>
             Linked Payment Sources
           </Text>
@@ -348,7 +348,7 @@ export default function ClientPayments() {
               </View>
             ))}
           </View>
-        </View>
+        </View> */} 
 
         {/* ── Project Wallet Cards ── */}
         <View style={{ paddingHorizontal: 20 }}>

@@ -54,6 +54,9 @@ export interface ProjectData {
     coordinates: Array<{ latitude: number; longitude: number }>;
     area: number;
     address?: string;
+    upi?: string;
+    ownerName?: string;
+    landUse?: string;
   };
   
   // Step 4: Documents
