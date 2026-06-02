@@ -2,6 +2,7 @@ import { useColorScheme } from "react-native";
 import {
   AppColorScheme,
   AppThemeColors,
+  setActiveColorScheme,
   THEME_COLORS,
 } from "@/constants/colors";
 import { useThemeStore } from "@/store/theme.store";
@@ -17,9 +18,10 @@ export const useThemeColors = (): {
   const scheme: AppColorScheme =
     preference === "system"
       ? colorScheme === "dark"
-        ? "dark"
-        : "light"
+      ? "dark"
+      : "light"
       : preference;
+  setActiveColorScheme(scheme);
 
   return {
     colors: THEME_COLORS[scheme],

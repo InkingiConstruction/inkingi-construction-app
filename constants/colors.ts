@@ -1,3 +1,5 @@
+import { Appearance } from "react-native";
+
 export const LIGHT_COLORS = {
   PRIMARY: "#047857",
   PRIMARY_DARK: "#065F46",
@@ -76,4 +78,17 @@ export const THEME_COLORS = {
 export type AppColorScheme = keyof typeof THEME_COLORS;
 export type AppThemeColors = typeof LIGHT_COLORS;
 
-export const COLORS = LIGHT_COLORS;
+let activeColorScheme: AppColorScheme =
+  Appearance.getColorScheme() === "dark" ? "dark" : "light";
+
+export const setActiveColorScheme = (scheme: AppColorScheme) => {
+  activeColorScheme = scheme;
+};
+
+export const getActiveColorScheme = () => activeColorScheme;
+
+export const COLORS = new Proxy(LIGHT_COLORS, {
+  get(_, property: keyof AppThemeColors) {
+    return THEME_COLORS[activeColorScheme][property] ?? LIGHT_COLORS[property];
+  },
+}) as AppThemeColors;

@@ -6,14 +6,13 @@ import {
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
-  Switch,
   Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { COLORS } from "@/constants/colors";
 import { useAuthStore } from "@/store/auth.store";
-import { useThemeStore } from "@/store/theme.store";
+import { ThemePreference, useThemeStore } from "@/store/theme.store";
 
 export function ProfileScreen() {
   const user = useAuthStore((state) => state.user);
@@ -266,20 +265,7 @@ export function ProfileScreen() {
 
           <Group title="PREFERENCES">
             <MenuRow icon="language-outline" label="Language" value="English (USA)" />
-            <View style={rowStyle}>
-              <View style={rowIconStyle}>
-                <Ionicons name="moon-outline" size={18} color={COLORS.PRIMARY_DARK} />
-              </View>
-              <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "800" }}>
-                Dark Mode
-              </Text>
-              <Switch
-                value={preference === "dark"}
-                onValueChange={(value) => setPreference(value ? "dark" : "light")}
-                trackColor={{ false: COLORS.CONCRETE, true: COLORS.PRIMARY }}
-                thumbColor={COLORS.SURFACE}
-              />
-            </View>
+            <ThemePreferenceRow preference={preference} onChange={setPreference} />
           </Group>
 
           <View style={{ ...groupStyle, marginBottom: 24 }}>
@@ -309,6 +295,69 @@ export function ProfileScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function ThemePreferenceRow({
+  preference,
+  onChange,
+}: {
+  preference: ThemePreference;
+  onChange: (preference: ThemePreference) => void;
+}) {
+  const options: { label: string; value: ThemePreference; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { label: "System", value: "system", icon: "phone-portrait-outline" },
+    { label: "Light", value: "light", icon: "sunny-outline" },
+    { label: "Dark", value: "dark", icon: "moon-outline" },
+  ];
+
+  return (
+    <View style={{ padding: 14 }}>
+      <View style={{ alignItems: "center", flexDirection: "row", gap: 12, marginBottom: 12 }}>
+        <View style={rowIconStyle}>
+          <Ionicons name="contrast-outline" size={18} color={COLORS.PRIMARY_DARK} />
+        </View>
+        <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "800" }}>
+          Appearance
+        </Text>
+      </View>
+      <View style={{ backgroundColor: COLORS.MUTED, borderRadius: 10, flexDirection: "row", padding: 4 }}>
+        {options.map((option) => {
+          const selected = preference === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              onPress={() => onChange(option.value)}
+              style={{
+                alignItems: "center",
+                backgroundColor: selected ? COLORS.SURFACE : "transparent",
+                borderRadius: 8,
+                flex: 1,
+                flexDirection: "row",
+                gap: 5,
+                justifyContent: "center",
+                paddingVertical: 9,
+              }}
+            >
+              <Ionicons
+                name={option.icon}
+                size={14}
+                color={selected ? COLORS.PRIMARY_DARK : COLORS.TEXT_SECONDARY}
+              />
+              <Text
+                style={{
+                  color: selected ? COLORS.PRIMARY_DARK : COLORS.TEXT_SECONDARY,
+                  fontSize: 12,
+                  fontWeight: "900",
+                }}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
