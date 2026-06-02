@@ -169,7 +169,7 @@ export function ProfileScreen() {
               }}
             >
               <StatusPill
-                icon="person-badge-outline"
+                icon="id-card-outline"
                 label={(user?.role || "client").toUpperCase()}
               />
               <StatusPill
