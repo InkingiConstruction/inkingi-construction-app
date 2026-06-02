@@ -13,6 +13,7 @@ export const ENDPOINTS = {
   },
   NOTIFICATIONS: {
     LIST: "/notifications",
+    EXPO_TOKEN: "/notifications/expo-token",
     DETAIL: (id: string) => `/notifications/${id}`,
   },
   MESSAGES: {

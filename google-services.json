@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "880048186000",
+    "project_id": "inkingi-construction",
+    "storage_bucket": "inkingi-construction.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:880048186000:android:9c8e04f25875484cd76e15",
+        "android_client_info": {
+          "package_name": "com.francois250.inkingi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBNqTm835GNm14BYW2ZRFuYQwrOn0XjvjE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

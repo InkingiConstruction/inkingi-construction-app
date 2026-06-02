@@ -1,8 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal, Pressable, Text, View } from "react-native";
 import { Image } from "expo-image";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { COLORS } from "@/constants/colors";
 
 export type ProgressMedia = {
@@ -19,67 +21,155 @@ export function ProgressMediaViewer({
   media: ProgressMedia | null;
   onClose: () => void;
 }) {
-  const [zoom, setZoom] = useState(1);
+  const [videoChromeVisible, setVideoChromeVisible] = useState(false);
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
   const player = useVideoPlayer(media?.isVideo ? media.url : null, (instance) => {
     instance.loop = false;
   });
 
-  const zoomIn = () => setZoom((current) => Math.min(current + 0.25, 3));
-  const zoomOut = () => setZoom((current) => Math.max(current - 0.25, 1));
-  const resetZoom = () => setZoom(1);
+  useEffect(() => {
+    setVideoChromeVisible(false);
+    scale.value = 1;
+    savedScale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+  }, [media?.url, savedScale, savedTranslateX, savedTranslateY, scale, translateX, translateY]);
+
+  useEffect(() => {
+    if (!media?.isVideo) return undefined;
+
+    const subscription = player.addListener("playToEnd", () => {
+      onClose();
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [media?.isVideo, onClose, player]);
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((event) => {
+      scale.value = Math.min(Math.max(savedScale.value * event.scale, 1), 4);
+    })
+    .onEnd(() => {
+      savedScale.value = scale.value;
+      if (scale.value <= 1.01) {
+        scale.value = 1;
+        savedScale.value = 1;
+        translateX.value = 0;
+        translateY.value = 0;
+        savedTranslateX.value = 0;
+        savedTranslateY.value = 0;
+      }
+    });
+
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      if (scale.value <= 1) return;
+      translateX.value = savedTranslateX.value + event.translationX;
+      translateY.value = savedTranslateY.value + event.translationY;
+    })
+    .onEnd(() => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    });
+
+  const imageGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+  const imageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
+  }));
 
   return (
     <Modal visible={Boolean(media)} animationType="fade" transparent>
-      <View style={{ backgroundColor: "rgba(15, 23, 42, 0.96)", flex: 1 }}>
-        <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 52, paddingBottom: 12 }}>
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ color: COLORS.TEXT_WHITE, fontSize: 16, fontWeight: "900" }}>
-              {media?.title || (media?.isVideo ? "Progress video" : "Progress photo")}
-            </Text>
-            {media?.caption ? (
-              <Text numberOfLines={1} style={{ color: "#CBD5E1", fontSize: 12, marginTop: 3 }}>
-                {media.caption}
-              </Text>
+      <View style={{ backgroundColor: media?.isVideo ? "#000000" : "rgba(15, 23, 42, 0.96)", flex: 1 }}>
+        {media?.isVideo ? (
+          <>
+            <Pressable
+              onPress={onClose}
+              style={{
+                alignItems: "center",
+                backgroundColor: "rgba(0, 0, 0, 0.58)",
+                borderRadius: 18,
+                height: 36,
+                justifyContent: "center",
+                position: "absolute",
+                right: 14,
+                top: 48,
+                width: 36,
+                zIndex: 6,
+              }}
+            >
+              <Ionicons name="close-outline" size={24} color={COLORS.TEXT_WHITE} />
+            </Pressable>
+            {videoChromeVisible ? (
+              <View
+                style={{
+                  backgroundColor: "rgba(0, 0, 0, 0.42)",
+                  borderRadius: 8,
+                  left: 14,
+                  maxWidth: "72%",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  position: "absolute",
+                  top: 50,
+                  zIndex: 5,
+                }}
+              >
+                <Text numberOfLines={1} style={{ color: COLORS.TEXT_WHITE, fontSize: 14, fontWeight: "900" }}>
+                  {media.title || "Progress video"}
+                </Text>
+              </View>
             ) : null}
-          </View>
-          <Pressable
-            onPress={onClose}
-            style={{ alignItems: "center", backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 10, height: 42, justifyContent: "center", width: 42 }}
-          >
-            <Ionicons name="close-outline" size={26} color={COLORS.TEXT_WHITE} />
-          </Pressable>
-        </View>
+          </>
+        ) : (
+          <ViewerHeader media={media} onClose={onClose} />
+        )}
 
-        <View style={{ flex: 1, justifyContent: "center" }}>
+        <View
+          onTouchStart={() => {
+            if (media?.isVideo) setVideoChromeVisible(true);
+          }}
+          style={{ flex: 1, justifyContent: "center" }}
+        >
           {media?.isVideo ? (
             <VideoView
               player={player}
-              allowsFullscreen
+              contentFit="contain"
+              fullscreenOptions={{ enable: true }}
               allowsPictureInPicture
               nativeControls
-              style={{ aspectRatio: 16 / 9, backgroundColor: "#000000", width: "100%" }}
+              playsInline
+              style={{ backgroundColor: "#000000", flex: 1, width: "100%" }}
             />
           ) : media ? (
-            <Image
-              source={{ uri: media.url }}
-              contentFit="contain"
-              enableLiveTextInteraction
-              allowDownscaling={false}
-              style={{ height: "100%", transform: [{ scale: zoom }], width: "100%" }}
-            />
+            <GestureDetector gesture={imageGesture}>
+              <Animated.View style={[{ height: "100%", width: "100%" }, imageStyle]}>
+                <Image
+                  source={{ uri: media.url }}
+                  contentFit="contain"
+                  enableLiveTextInteraction
+                  allowDownscaling={false}
+                  style={{ height: "100%", width: "100%" }}
+                />
+              </Animated.View>
+            </GestureDetector>
           ) : null}
         </View>
 
         {!media?.isVideo ? (
-          <View style={{ alignItems: "center", gap: 10, paddingBottom: 28, paddingHorizontal: 16 }}>
-            <View style={{ backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 999, flexDirection: "row", overflow: "hidden" }}>
-              <ZoomButton icon="remove-outline" onPress={zoomOut} />
-              <Pressable onPress={resetZoom} style={{ alignItems: "center", justifyContent: "center", minWidth: 72, paddingHorizontal: 12 }}>
-                <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 12, fontWeight: "900" }}>{Math.round(zoom * 100)}%</Text>
-              </Pressable>
-              <ZoomButton icon="add-outline" onPress={zoomIn} />
-            </View>
-            <Text style={{ color: "#CBD5E1", fontSize: 12, textAlign: "center" }}>Use the controls to zoom the image.</Text>
+          <View style={{ alignItems: "center", paddingBottom: 28, paddingHorizontal: 16 }}>
+            <Text style={{ color: "#CBD5E1", fontSize: 12, textAlign: "center" }}>Pinch to zoom. Drag to inspect when zoomed.</Text>
           </View>
         ) : null}
       </View>
@@ -87,10 +177,25 @@ export function ProgressMediaViewer({
   );
 }
 
-function ZoomButton({ icon, onPress }: { icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
+function ViewerHeader({ media, onClose }: { media: ProgressMedia | null; onClose: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ alignItems: "center", height: 44, justifyContent: "center", width: 48 }}>
-      <Ionicons name={icon} size={22} color={COLORS.TEXT_WHITE} />
-    </Pressable>
+    <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 52, paddingBottom: 12 }}>
+      <View style={{ flex: 1 }}>
+        <Text numberOfLines={1} style={{ color: COLORS.TEXT_WHITE, fontSize: 16, fontWeight: "900" }}>
+          {media?.title || "Progress photo"}
+        </Text>
+        {media?.caption ? (
+          <Text numberOfLines={1} style={{ color: "#CBD5E1", fontSize: 12, marginTop: 3 }}>
+            {media.caption}
+          </Text>
+        ) : null}
+      </View>
+      <Pressable
+        onPress={onClose}
+        style={{ alignItems: "center", backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 10, height: 42, justifyContent: "center", width: 42 }}
+      >
+        <Ionicons name="close-outline" size={26} color={COLORS.TEXT_WHITE} />
+      </Pressable>
+    </View>
   );
 }
