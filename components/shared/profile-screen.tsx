@@ -67,58 +67,135 @@ export function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.SURFACE }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
-          <View style={{ alignItems: "center", flexDirection: "row", gap: 12, marginBottom: 24 }}>
-            <Pressable onPress={() => router.back()} hitSlop={12}>
-              <Ionicons name="arrow-back" size={22} color={COLORS.TEXT_PRIMARY} />
-            </Pressable>
-            <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 17, fontWeight: "900" }}>
-              My Profile
-            </Text>
-          </View>
-
-          <View style={{ alignItems: "center", flexDirection: "row", gap: 14, marginBottom: 20 }}>
-            <View
+          <View style={{ alignItems: "center", flexDirection: "row", gap: 12, marginBottom: 18 }}>
+            <Pressable
+              onPress={() => router.back()}
+              hitSlop={12}
               style={{
                 alignItems: "center",
-                backgroundColor: COLORS.PRIMARY_LIGHT,
-                borderRadius: 28,
-                height: 56,
+                backgroundColor: COLORS.SURFACE,
+                borderColor: COLORS.BORDER_LIGHT,
+                borderRadius: 10,
+                borderWidth: 1,
+                height: 38,
                 justifyContent: "center",
-                overflow: "hidden",
-                width: 56,
+                width: 38,
               }}
             >
-              {user?.image || user?.avatar ? (
-                <Image
-                  source={{ uri: user.image || user.avatar || "" }}
-                  style={{ height: 56, width: 56 }}
-                />
-              ) : (
-                <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 22, fontWeight: "900" }}>
-                  {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
-                </Text>
-              )}
-            </View>
+              <Ionicons name="arrow-back" size={20} color={COLORS.PRIMARY_DARK} />
+            </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 20, fontWeight: "900" }}>
-                {user?.name || "Account user"}
+                Profile
               </Text>
-              <Text style={{ color: COLORS.TEXT_SECONDARY, marginTop: 3 }}>
-                {user?.email || "No email"}
+              <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
+                Account, verification, and preferences
               </Text>
             </View>
           </View>
 
           <View
             style={{
-              backgroundColor: "#B9F000",
-              borderRadius: 10,
+              backgroundColor: COLORS.PRIMARY_DARK,
+              borderRadius: 8,
+              marginBottom: 16,
+              overflow: "hidden",
+              padding: 18,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "rgba(245, 158, 11, 0.22)",
+                height: 84,
+                position: "absolute",
+                right: -24,
+                top: -18,
+                transform: [{ rotate: "-14deg" }],
+                width: 180,
+              }}
+            />
+            <View
+              style={{
+                backgroundColor: "rgba(255, 255, 255, 0.10)",
+                bottom: -28,
+                height: 88,
+                left: -20,
+                position: "absolute",
+                transform: [{ rotate: "10deg" }],
+                width: 160,
+              }}
+            />
+            <View style={{ alignItems: "center", flexDirection: "row", gap: 14 }}>
+              <View
+                style={{
+                  alignItems: "center",
+                  backgroundColor: COLORS.SURFACE,
+                  borderColor: "rgba(255, 255, 255, 0.58)",
+                  borderRadius: 32,
+                  borderWidth: 3,
+                  height: 64,
+                  justifyContent: "center",
+                  overflow: "hidden",
+                  width: 64,
+                }}
+              >
+                {user?.image || user?.avatar ? (
+                  <Image
+                    source={{ uri: user.image || user.avatar || "" }}
+                    style={{ height: 64, width: 64 }}
+                  />
+                ) : (
+                  <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 22, fontWeight: "900" }}>
+                    {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 21, fontWeight: "900" }}>
+                  {user?.name || "Account user"}
+                </Text>
+                <Text style={{ color: "rgba(255, 255, 255, 0.78)", fontSize: 13, fontWeight: "700", marginTop: 4 }}>
+                  {user?.email || "No email"}
+                </Text>
+                <View
+                  style={{
+                    alignSelf: "flex-start",
+                    backgroundColor: user?.emailVerified ? "rgba(209, 250, 229, 0.20)" : "rgba(245, 158, 11, 0.24)",
+                    borderColor: user?.emailVerified ? "rgba(209, 250, 229, 0.45)" : "rgba(245, 158, 11, 0.48)",
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    flexDirection: "row",
+                    gap: 6,
+                    marginTop: 10,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                  }}
+                >
+                  <Ionicons
+                    name={user?.emailVerified ? "checkmark-circle" : "time-outline"}
+                    size={14}
+                    color={user?.emailVerified ? COLORS.PRIMARY_LIGHT : COLORS.GOLD}
+                  />
+                  <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 11, fontWeight: "900" }}>
+                    {user?.emailVerified ? "Email verified" : "Email pending"}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View
+            style={{
+              backgroundColor: COLORS.SURFACE,
+              borderColor: COLORS.BORDER_LIGHT,
+              borderRadius: 8,
+              borderWidth: 1,
               flexDirection: "row",
               marginBottom: 16,
               minHeight: 108,
@@ -128,10 +205,10 @@ export function ProfileScreen() {
           >
             <View style={{ flex: 1, justifyContent: "space-between" }}>
               <View>
-                <Text style={{ color: COLORS.INK, fontSize: 14, fontWeight: "900" }}>
+                <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 14, fontWeight: "900" }}>
                   Profile Verification
                 </Text>
-                <Text style={{ color: COLORS.INK, fontSize: 13, marginTop: 4 }}>
+                <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13, fontWeight: "700", marginTop: 4 }}>
                   {user?.kycStatus === "approved" ? "Verified account" : `${user?.kycStatus || "pending"} KYC`}
                 </Text>
               </View>
@@ -140,14 +217,14 @@ export function ProfileScreen() {
                 disabled={loading}
                 style={{
                   alignSelf: "flex-start",
-                  backgroundColor: COLORS.SURFACE,
-                  borderRadius: 6,
+                  backgroundColor: COLORS.PRIMARY,
+                  borderRadius: 8,
                   opacity: loading ? 0.7 : 1,
                   paddingHorizontal: 14,
                   paddingVertical: 10,
                 }}
               >
-                <Text style={{ color: COLORS.INK, fontSize: 12, fontWeight: "900" }}>
+                <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 12, fontWeight: "900" }}>
                   {loading ? "Saving" : "Update profile"}
                 </Text>
               </Pressable>
@@ -156,16 +233,17 @@ export function ProfileScreen() {
               <View
                 style={{
                   alignItems: "center",
-                  borderColor: COLORS.INK,
+                  backgroundColor: COLORS.PRIMARY_LIGHT,
+                  borderColor: COLORS.PRIMARY,
                   borderRadius: 38,
-                  borderRightColor: "rgba(15, 23, 42, 0.18)",
+                  borderRightColor: COLORS.GOLD,
                   borderWidth: 5,
                   height: 76,
                   justifyContent: "center",
                   width: 76,
                 }}
               >
-                <Text style={{ color: COLORS.INK, fontSize: 20, fontWeight: "900" }}>
+                <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 20, fontWeight: "900" }}>
                   {completion}%
                 </Text>
               </View>
@@ -204,7 +282,7 @@ export function ProfileScreen() {
             <MenuRow icon="language-outline" label="Language" value="English (USA)" />
             <View style={rowStyle}>
               <View style={rowIconStyle}>
-                <Ionicons name="moon-outline" size={18} color={COLORS.TEXT_SECONDARY} />
+                <Ionicons name="moon-outline" size={18} color={COLORS.PRIMARY_DARK} />
               </View>
               <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "800" }}>
                 Dark Mode
@@ -212,7 +290,7 @@ export function ProfileScreen() {
               <Switch
                 value={preference === "dark"}
                 onValueChange={(value) => setPreference(value ? "dark" : "light")}
-                trackColor={{ false: COLORS.CONCRETE, true: "#B9F000" }}
+                trackColor={{ false: COLORS.CONCRETE, true: COLORS.PRIMARY }}
                 thumbColor={COLORS.SURFACE}
               />
             </View>
@@ -225,10 +303,20 @@ export function ProfileScreen() {
           <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between" }}>
             <Pressable
               onPress={handleLogout}
-              style={{ alignItems: "center", flexDirection: "row", gap: 8, paddingVertical: 12 }}
+              style={{
+                alignItems: "center",
+                backgroundColor: COLORS.SURFACE,
+                borderColor: "rgba(220, 38, 38, 0.18)",
+                borderRadius: 8,
+                borderWidth: 1,
+                flexDirection: "row",
+                gap: 8,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+              }}
             >
               <Ionicons name="log-out-outline" size={19} color={COLORS.ERROR} />
-              <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>Log Out</Text>
+              <Text style={{ color: COLORS.ERROR, fontWeight: "900" }}>Log Out</Text>
             </Pressable>
             <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12 }}>Version 1.0.0</Text>
           </View>
