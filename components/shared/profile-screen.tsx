@@ -1,17 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   Switch,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,24 +17,10 @@ import { useThemeStore } from "@/store/theme.store";
 
 export function ProfileScreen() {
   const user = useAuthStore((state) => state.user);
-  const loading = useAuthStore((state) => state.loading);
-  const updateProfile = useAuthStore((state) => state.updateProfile);
   const logout = useAuthStore((state) => state.logout);
   const preference = useThemeStore((state) => state.preference);
   const setPreference = useThemeStore((state) => state.setPreference);
-  const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [imageUri, setImageUri] = useState("");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    setName(user?.name || "");
-    setUsername(user?.username || user?.displayUsername || "");
-    setPhoneNumber(user?.phoneNumber || user?.phone || "");
-    setImageUri(user?.image || user?.avatar || "");
-  }, [user]);
+  const imageUri = user?.image || user?.avatar || "";
 
   const completion = useMemo(() => {
     let score = 20;
@@ -49,56 +31,21 @@ export function ProfileScreen() {
     return Math.min(score, 100);
   }, [user]);
 
-  const save = async () => {
-    setMessage("");
-    setError("");
-    try {
-      await updateProfile({
-        name: name.trim(),
-        username: username.trim(),
-        displayUsername: username.trim(),
-        phoneNumber: phoneNumber.trim(),
-        image: imageUri,
-      });
-      setMessage("Profile updated successfully.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update profile");
-    }
-  };
-
-  const pickProfileImage = async () => {
-    setMessage("");
-    setError("");
-
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permission.status !== "granted") {
-      Alert.alert("Permission needed", "Allow gallery access to update your profile photo.");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      mediaTypes: ["images"],
-      quality: 0.82,
-    });
-
-    if (!result.canceled && result.assets[0]?.uri) {
-      setImageUri(result.assets[0].uri);
-    }
-  };
-
   const handleLogout = async () => {
     await logout();
     router.replace("/(auth)/login");
   };
 
+  const openEditProfile = () => {
+    const role = user?.role === "engineer" || user?.role === "supervisor" || user?.role === "supplier"
+      ? user.role
+      : "client";
+    router.push(`/(${role})/profile-edit` as never);
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1 }}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
           <View style={{ alignItems: "center", flexDirection: "row", gap: 12, marginBottom: 18 }}>
             <Pressable
@@ -159,8 +106,7 @@ export function ProfileScreen() {
               }}
             />
             <View style={{ alignItems: "center", flexDirection: "row", gap: 14 }}>
-              <Pressable
-                onPress={pickProfileImage}
+              <View
                 style={{
                   alignItems: "center",
                   backgroundColor: COLORS.SURFACE,
@@ -183,24 +129,7 @@ export function ProfileScreen() {
                     {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
                   </Text>
                 )}
-                <View
-                  style={{
-                    alignItems: "center",
-                    backgroundColor: COLORS.GOLD,
-                    borderColor: COLORS.PRIMARY_DARK,
-                    borderRadius: 12,
-                    borderWidth: 2,
-                    bottom: -4,
-                    height: 24,
-                    justifyContent: "center",
-                    position: "absolute",
-                    right: -4,
-                    width: 24,
-                  }}
-                >
-                  <Ionicons name="camera" size={12} color={COLORS.INK} />
-                </View>
-              </Pressable>
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 21, fontWeight: "900" }}>
                   {user?.name || "Account user"}
@@ -274,19 +203,17 @@ export function ProfileScreen() {
                 </Text>
               </View>
               <Pressable
-                onPress={save}
-                disabled={loading}
+                onPress={openEditProfile}
                 style={{
                   alignSelf: "flex-start",
                   backgroundColor: COLORS.PRIMARY,
                   borderRadius: 8,
-                  opacity: loading ? 0.7 : 1,
                   paddingHorizontal: 14,
                   paddingVertical: 10,
                 }}
               >
                 <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 12, fontWeight: "900" }}>
-                  {loading ? "Saving" : "Update profile"}
+                  Update profile
                 </Text>
               </Pressable>
             </View>
@@ -311,27 +238,10 @@ export function ProfileScreen() {
             </View>
           </View>
 
-          {message ? (
-            <Text style={{ color: COLORS.SUCCESS, fontSize: 12, fontWeight: "800", marginBottom: 10 }}>
-              {message}
-            </Text>
-          ) : null}
-          {error ? (
-            <Text style={{ color: COLORS.ERROR, fontSize: 12, fontWeight: "800", marginBottom: 10 }}>
-              {error}
-            </Text>
-          ) : null}
-
           <Group title="ACCOUNT">
-            <ProfileInput icon="person-outline" label="Full name" value={name} onChangeText={setName} />
-            <ProfileInput icon="at-outline" label="Username" value={username} onChangeText={setUsername} />
-            <ProfileInput
-              icon="call-outline"
-              label="Phone number"
-              keyboardType="phone-pad"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-            />
+            <MenuRow icon="person-outline" label="Full name" value={user?.name || "Not set"} />
+            <MenuRow icon="at-outline" label="Username" value={user?.username || user?.displayUsername || "Not set"} />
+            <MenuRow icon="call-outline" label="Phone number" value={user?.phoneNumber || user?.phone || "Not set"} />
             <MenuRow icon="mail-outline" label="Email" value={user?.email || "No email"} />
             <MenuRow icon="shield-checkmark-outline" label="Role" value={user?.role || "client"} />
           </Group>
@@ -473,32 +383,6 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
         {title}
       </Text>
       {children}
-    </View>
-  );
-}
-
-type ProfileInputProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  value: string;
-  keyboardType?: "default" | "phone-pad";
-  onChangeText: (value: string) => void;
-};
-
-function ProfileInput({ icon, label, value, keyboardType = "default", onChangeText }: ProfileInputProps) {
-  return (
-    <View style={rowStyle}>
-      <View style={rowIconStyle}>
-        <Ionicons name={icon} size={16} color={COLORS.TEXT_SECONDARY} />
-      </View>
-      <TextInput
-        keyboardType={keyboardType}
-        onChangeText={onChangeText}
-        placeholder={label}
-        placeholderTextColor={COLORS.TEXT_LIGHT}
-        style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "800", paddingVertical: 0 }}
-        value={value}
-      />
     </View>
   );
 }

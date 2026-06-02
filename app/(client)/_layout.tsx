@@ -16,6 +16,7 @@ export default function RootLayout() {
         "assign-supervisor",
         "notifications",
         "profile",
+        "profile-edit",
         "settings",
       ]}
     />

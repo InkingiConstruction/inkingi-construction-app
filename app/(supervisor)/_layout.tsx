@@ -13,6 +13,7 @@ export default function RootLayout() {
         "progress-review",
         "notifications",
         "profile",
+        "profile-edit",
         "settings",
       ]}
     />

@@ -16,6 +16,7 @@ export default function RootLayout() {
         "rfqs",
         "notifications",
         "profile",
+        "profile-edit",
         "settings",
         "project/[id]",
       ]}
