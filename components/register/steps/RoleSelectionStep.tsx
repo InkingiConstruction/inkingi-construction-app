@@ -1,58 +1,52 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { COLORS } from '@/constants/colors';
-import { createStyles } from '@/utils/createStyles';
-import type { UserRole } from '@/app/(auth)/register';
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import type { UserRole } from "@/app/(auth)/register";
+import { COLORS } from "@/constants/colors";
+import { createStyles } from "@/utils/createStyles";
 
 interface RoleConfig {
   id: UserRole;
   title: string;
   icon: keyof typeof Ionicons.glyphMap;
   description: string;
-  features: string[];
-  color: string;
-  bgColor: string;
+  accent: string;
+  tint: string;
 }
 
 const ROLES: RoleConfig[] = [
   {
-    id: 'client',
-    title: 'Client',
-    icon: 'home-outline',
-    description: 'Property owner looking to build or renovate',
-    features: ['Post projects', 'Secure escrow payments', 'Track progress', 'Hire professionals'],
-    color: COLORS.PRIMARY,
-    bgColor: COLORS.PRIMARY_LIGHT,
+    id: "client",
+    title: "Client",
+    icon: "home-outline",
+    description: "Create a project, assign professionals, and follow site progress.",
+    accent: COLORS.PRIMARY,
+    tint: COLORS.PRIMARY_LIGHT,
   },
   {
-    id: 'engineer',
-    title: 'Engineer',
-    icon: 'construct-outline',
-    description: 'Professional engineer or engineering firm',
-    features: ['Get hired', 'Submit BOQs', 'Request quotations', 'Earn via escrow'],
-    color: '#2563EB',
-    bgColor: '#DBEAFE',
+    id: "engineer",
+    title: "Engineer",
+    icon: "construct-outline",
+    description: "Manage milestones, BOQs, procurement requests, and updates.",
+    accent: COLORS.INFO,
+    tint: "#DBEAFE",
   },
   {
-    id: 'supervisor',
-    title: 'Supervisor',
-    icon: 'shield-checkmark-outline',
-    description: 'Construction supervisor or inspection company',
-    features: ['Site inspections', 'Approve milestones', 'Quality standards', 'Progress reports'],
-    color: '#D97706',
-    bgColor: '#FEF3C7',
+    id: "supervisor",
+    title: "Supervisor",
+    icon: "shield-checkmark-outline",
+    description: "Review assigned work, approve progress, and record inspection decisions.",
+    accent: COLORS.GOLD,
+    tint: "#FEF3C7",
   },
   {
-    id: 'supplier',
-    title: 'Supplier',
-    icon: 'cube-outline',
-    description: 'Construction materials and equipment supplier',
-    features: ['Receive RFQs', 'Submit quotes', 'Get paid via escrow', 'Expand reach'],
-    color: '#7C3AED',
-    bgColor: '#EDE9FE',
+    id: "supplier",
+    title: "Supplier",
+    icon: "cube-outline",
+    description: "Receive RFQs, submit quotes, and coordinate material delivery.",
+    accent: COLORS.STEEL,
+    tint: COLORS.MUTED,
   },
 ];
 
@@ -61,108 +55,177 @@ interface RoleSelectionStepProps {
 }
 
 export default function RoleSelectionStep({ onSelect }: RoleSelectionStepProps) {
-  const [selected, setSelected] = useState<UserRole | null>(null);
+  const handleSelect = (role: UserRole) => {
+    onSelect(role);
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>      
-        {/* Heading */}
-        <Text style={styles.heading}>Choose Your Role</Text>
-        <Text style={styles.subheading}>Select how you want to use InkingiPro to get started.</Text>
-
-        {/* Role cards */}
-        {ROLES.map((role) => {
-          const isSelected = selected === role.id;
-          return (
-            <Pressable
-              key={role.id}
-              onPress={() => setSelected(role.id)}
-              style={[styles.card, isSelected && { borderColor: role.color, backgroundColor: role.bgColor }]}
-            >
-              <View style={[styles.iconBox, { backgroundColor: role.bgColor }]}>
-                <Ionicons name={role.icon} size={28} color={role.color} />
-              </View>
-              <View style={styles.cardBody}>
-                <View style={styles.cardTitleRow}>
-                  <Text style={styles.cardTitle}>{role.title}</Text>
-                  {isSelected && <Ionicons name="checkmark-circle" size={18} color={role.color} />}
-                </View>
-                <Text style={styles.cardDesc}>{role.description}</Text>
-                <View style={styles.featureRow}>
-                  {role.features.map((f, i) => (
-                    <View key={i} style={[styles.featureChip, { backgroundColor: role.bgColor }]}>
-                      <Ionicons name="checkmark" size={10} color={role.color} />
-                      <Text style={[styles.featureText, { color: role.color }]}>{f}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            </Pressable>
-          );
-        })}
-
-        {/* Already have account */}
-        <View style={styles.loginRow}>
-          <Text style={styles.loginLabel}>Already have an account? </Text>
-          <Pressable onPress={() => router.replace('/(auth)/login')}>
-            <Text style={styles.loginLink}>Sign In</Text>
-          </Pressable>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <View style={styles.brandMark}>
+            <Ionicons name="business-outline" size={22} color={COLORS.TEXT_WHITE} />
+          </View>
+          <View style={styles.headerText}>
+            <Text style={styles.kicker}>INKINGI CONSTRUCTION</Text>
+            <Text style={styles.heading}>Choose your workspace</Text>
+            <Text style={styles.subheading}>
+              Pick the role that matches how you will use the platform.
+            </Text>
+          </View>
         </View>
 
-        {/* Continue */}
-        <Pressable
-          onPress={() => selected && onSelect(selected)}
-          disabled={!selected}
-          style={[styles.continueBtn, !selected && styles.continueBtnDisabled]}
-        >
-          <Text style={styles.continueBtnText}>Continue</Text>
-        </Pressable>
+        <View style={styles.roleList}>
+          {ROLES.map((role) => (
+            <Pressable
+              key={role.id}
+              onPress={() => handleSelect(role.id)}
+              style={({ pressed }) => [
+                styles.card,
+                pressed ? styles.cardPressed : null,
+              ]}
+            >
+              <View style={[styles.iconBox, { backgroundColor: role.tint }]}>
+                <Ionicons name={role.icon} size={22} color={role.accent} />
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{role.title}</Text>
+                <Text style={styles.cardDesc}>{role.description}</Text>
+              </View>
+              <View style={styles.actionIcon}>
+                <Ionicons name="arrow-forward" size={17} color={COLORS.PRIMARY_DARK} />
+              </View>
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={styles.loginRow}>
+          <Text style={styles.loginLabel}>Already registered?</Text>
+          <Pressable onPress={() => router.replace("/(auth)/login")}>
+            <Text style={styles.loginLink}>Sign in</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = createStyles({
-  safe: { flex: 1, backgroundColor: COLORS.BACKGROUND },
-  container: { paddingHorizontal: 20, paddingTop: 32, paddingBottom: 40 },
-  logoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 32, gap: 14 },
-  logoBox: {
-    width: 64, height: 64, borderRadius: 16,
-    backgroundColor: COLORS.PRIMARY,
-    alignItems: 'center', justifyContent: 'center',
+  safe: {
+    flex: 1,
+    backgroundColor: COLORS.BACKGROUND,
   },
-  logoText: { gap: 2 },
-  appName: { fontSize: 22, fontWeight: '900', color: COLORS.TEXT_PRIMARY },
-  tagline: { fontSize: 11, color: COLORS.TEXT_SECONDARY },
-  heading: { fontSize: 22, fontWeight: '800', color: COLORS.TEXT_PRIMARY, marginBottom: 4 },
-  subheading: { fontSize: 13, color: COLORS.TEXT_SECONDARY, marginBottom: 24, lineHeight: 18 },
+  container: {
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 34,
+  },
+  header: {
+    backgroundColor: COLORS.PRIMARY_DARK,
+    borderRadius: 8,
+    marginBottom: 18,
+    overflow: "hidden",
+    padding: 18,
+  },
+  brandMark: {
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.16)",
+    borderColor: "rgba(255, 255, 255, 0.24)",
+    borderRadius: 12,
+    borderWidth: 1,
+    height: 44,
+    justifyContent: "center",
+    marginBottom: 42,
+    width: 44,
+  },
+  headerText: {
+    gap: 6,
+  },
+  kicker: {
+    color: COLORS.GOLD,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+  },
+  heading: {
+    color: COLORS.TEXT_WHITE,
+    fontSize: 26,
+    fontWeight: "900",
+    lineHeight: 31,
+  },
+  subheading: {
+    color: "rgba(255, 255, 255, 0.76)",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 19,
+    maxWidth: 300,
+  },
+  roleList: {
+    gap: 10,
+  },
   card: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-    backgroundColor: COLORS.SURFACE, borderRadius: 16,
-    borderWidth: 1.5, borderColor: COLORS.BORDER_LIGHT,
-    padding: 14, marginBottom: 14,
+    alignItems: "center",
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    minHeight: 92,
+    padding: 14,
+  },
+  cardPressed: {
+    borderColor: COLORS.PRIMARY,
+    transform: [{ scale: 0.99 }],
   },
   iconBox: {
-    width: 52, height: 52, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: "center",
+    borderRadius: 8,
+    height: 46,
+    justifyContent: "center",
+    width: 46,
   },
-  cardBody: { flex: 1 },
-  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: COLORS.TEXT_PRIMARY },
-  cardDesc: { fontSize: 12, color: COLORS.TEXT_SECONDARY, marginBottom: 8 },
-  featureRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  featureChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5,
+  cardBody: {
+    flex: 1,
+    gap: 4,
   },
-  featureText: { fontSize: 10, fontWeight: '600' },
-  loginRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 8, marginBottom: 20 },
-  loginLabel: { color: COLORS.TEXT_SECONDARY, fontSize: 13 },
-  loginLink: { color: COLORS.PRIMARY, fontWeight: '700', fontSize: 13 },
-  continueBtn: {
-    backgroundColor: COLORS.PRIMARY, borderRadius: 12,
-    paddingVertical: 15, alignItems: 'center',
+  cardTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 16,
+    fontWeight: "900",
   },
-  continueBtnDisabled: { backgroundColor: COLORS.MUTED, opacity: 0.6 },
-  continueBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  cardDesc: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 17,
+  },
+  actionIcon: {
+    alignItems: "center",
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderRadius: 8,
+    height: 32,
+    justifyContent: "center",
+    width: 32,
+  },
+  loginRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+    justifyContent: "center",
+    marginTop: 22,
+  },
+  loginLabel: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  loginLink: {
+    color: COLORS.PRIMARY_DARK,
+    fontSize: 13,
+    fontWeight: "900",
+  },
 });
