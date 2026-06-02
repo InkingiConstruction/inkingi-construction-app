@@ -57,6 +57,17 @@ export const getRoleHome = (role?: string | null) => {
   return "/(client)";
 };
 
+export const getPostAuthRoute = (user?: User | null) => {
+  if (user && !user.emailVerified) {
+    return {
+      pathname: "/(auth)/verify-email",
+      params: { email: user.email },
+    };
+  }
+
+  return getRoleHome(user?.role);
+};
+
 export const isValidRwandanPhone = (phone: string): boolean => {
   const cleanPhone = phone.trim();
   return /^\+2507[2389]\d{7}$/.test(cleanPhone);
@@ -114,12 +125,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   register: async (name, email, password, role = "client", phoneNumber) => {
     set({ loading: true });
     try {
-      const username =
-        email.split("@")[0]?.replace(/[^a-zA-Z0-9_]/g, "") || name;
       const response = await api.post<AuthResponse>(ENDPOINTS.AUTH.REGISTER, {
         name,
         email,
-        username,
         password,
         role,
         phoneNumber,

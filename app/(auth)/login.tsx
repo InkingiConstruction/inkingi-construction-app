@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { COLORS } from "@/constants/colors";
-import { getRoleHome, useAuthStore } from "@/store/auth.store";
+import { getPostAuthRoute, useAuthStore } from "@/store/auth.store";
 
 export default function Login() {
   const login = useAuthStore((state) => state.login);
@@ -26,7 +26,7 @@ export default function Login() {
     try {
       await login(email.trim().toLowerCase(), password);
       const user = useAuthStore.getState().user;
-      router.replace(getRoleHome(user?.role) as never);
+      router.replace(getPostAuthRoute(user) as never);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     }
