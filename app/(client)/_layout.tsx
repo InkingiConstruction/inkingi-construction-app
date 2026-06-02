@@ -8,15 +8,22 @@ export default function RootLayout() {
         { name: "projects", title: "Projects", icon: "business-outline" },
         { name: "payments", title: "Payments", icon: "card-outline" },
         { name: "messages", title: "Chat", icon: "chatbubbles-outline" },
+        { name: "settings", title: "Settings", icon: "settings-outline" },
       ]}
       hiddenRoutes={[
-        "create-project",
+        "create-project/index",
+        "create-project/_steps/Step1_BasicInfo",
+        "create-project/_steps/Step2_Budget",
+        "create-project/_steps/Step3_Location",
+        "create-project/_steps/Step4_Documents",
+        "create-project/_steps/Step5_Review",
         "progress",
         "assign-engineer",
         "assign-supervisor",
         "notifications",
         "profile",
-        "settings",
+        "milestones",
+        "disputes",
       ]}
     />
   );

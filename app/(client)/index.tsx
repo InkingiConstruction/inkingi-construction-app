@@ -12,6 +12,10 @@ import {
   ClientProgressPhoto,
   ClientProject,
 } from "@/components/client/client-types";
+import { useState, useEffect } from "react";
+import { PieChart, BarChart } from "react-native-gifted-charts";
+import { useSampleFlowStore } from "@/store/sampleFlow.store";
+import { getAllFunds, formatRWF } from "@/utils/projectFunds";
 import { COLORS } from "@/constants/colors";
 
 export default function ClientIndex() {
@@ -41,7 +45,23 @@ export default function ClientIndex() {
   const awaitingPayments = milestones.filter((milestone) => milestone.status === "awaiting_client_payment");
   const withoutEngineer = projects.filter((project) => !project.engineerId);
   const loading = projectsQuery.isLoading || milestonesQuery.isLoading;
-  const totalEscrow = escrows.reduce((sum, escrow) => sum + Number(escrow.balance || 0), 0);
+
+  const { milestones: storeMilestones, disputes } = useSampleFlowStore();
+  const [localEscrows, setLocalEscrows] = useState<any[]>([]);
+
+  useEffect(() => {
+    getAllFunds().then(funds => {
+      setLocalEscrows(Object.values(funds));
+    });
+  }, [storeMilestones]);
+
+  const totalEscrow = localEscrows.length > 0 
+    ? localEscrows.reduce((sum, escrow) => sum + Number(escrow.balance || 0), 0)
+    : escrows.reduce((sum, escrow) => sum + Number(escrow.balance || 0), 0);
+
+  const totalBudget = localEscrows.length > 0
+    ? localEscrows.reduce((sum, escrow) => sum + Number(escrow.budget || 0), 0)
+    : projects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
 
   const nextProject = withoutEngineer[0] || activeProjects[0] || projects[0];
 
@@ -103,13 +123,199 @@ export default function ClientIndex() {
               </View>
             </View>
 
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <Metric label="Projects" value={projects.length} icon="business-outline" />
-              <Metric label="Active" value={activeProjects.length} icon="hammer-outline" />
+            {/* Metrics Chips Row */}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+              <Pressable
+                onPress={() => router.push("/(client)/projects")}
+                style={{
+                  backgroundColor: COLORS.SURFACE,
+                  borderColor: COLORS.BORDER_LIGHT,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  flex: 1,
+                  minWidth: "45%",
+                  padding: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10
+                }}
+              >
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.PRIMARY_LIGHT, alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="business" size={16} color={COLORS.PRIMARY} />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 16, fontWeight: "900", color: COLORS.TEXT_PRIMARY }}>{projects.length}</Text>
+                  <Text style={{ fontSize: 10, color: COLORS.TEXT_SECONDARY, fontWeight: "bold" }}>Total Projects</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push("/(client)/projects")}
+                style={{
+                  backgroundColor: COLORS.SURFACE,
+                  borderColor: COLORS.BORDER_LIGHT,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  flex: 1,
+                  minWidth: "45%",
+                  padding: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10
+                }}
+              >
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#DBEAFE", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="hammer-outline" size={16} color="#2563EB" />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 16, fontWeight: "900", color: COLORS.TEXT_PRIMARY }}>{activeProjects.length}</Text>
+                  <Text style={{ fontSize: 10, color: COLORS.TEXT_SECONDARY, fontWeight: "bold" }}>Active Projects</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push("/(client)/milestones")}
+                style={{
+                  backgroundColor: COLORS.SURFACE,
+                  borderColor: COLORS.BORDER_LIGHT,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  flex: 1,
+                  minWidth: "45%",
+                  padding: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10
+                }}
+              >
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#FEF3C7", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="flag-outline" size={16} color="#D97706" />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 16, fontWeight: "900", color: COLORS.TEXT_PRIMARY }}>{awaitingPayments.length}</Text>
+                  <Text style={{ fontSize: 10, color: COLORS.TEXT_SECONDARY, fontWeight: "bold" }}>Pay Reviews</Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push("/(client)/disputes")}
+                style={{
+                  backgroundColor: COLORS.SURFACE,
+                  borderColor: COLORS.BORDER_LIGHT,
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  flex: 1,
+                  minWidth: "45%",
+                  padding: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10
+                }}
+              >
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#FEE2E2", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="alert-circle-outline" size={16} color={COLORS.ERROR} />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 16, fontWeight: "900", color: COLORS.TEXT_PRIMARY }}>{disputes.length}</Text>
+                  <Text style={{ fontSize: 10, color: COLORS.TEXT_SECONDARY, fontWeight: "bold" }}>Active Disputes</Text>
+                </View>
+              </Pressable>
             </View>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <Metric label="Pay Review" value={awaitingPayments.length} icon="card-outline" />
-              <Metric label="Updates" value={progress.length} icon="images-outline" />
+
+            {/* Gifted Charts Visual Dashboard */}
+            <View style={{ gap: 16 }}>
+              {/* Card 1: Escrow Allocation Pie Chart */}
+              <View style={{
+                backgroundColor: COLORS.SURFACE,
+                borderColor: COLORS.BORDER_LIGHT,
+                borderWidth: 1,
+                borderRadius: 14,
+                padding: 16,
+                alignItems: "center"
+              }}>
+                <Text style={{ alignSelf: "flex-start", fontSize: 13, fontWeight: "900", color: COLORS.TEXT_PRIMARY, letterSpacing: 0.5, marginBottom: 12, textTransform: "uppercase" }}>
+                  Financial Escrow Status
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <View style={{ gap: 10 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: COLORS.PRIMARY }} />
+                      <View>
+                        <Text style={{ fontSize: 10, color: COLORS.TEXT_SECONDARY }}>Escrow Funds</Text>
+                        <Text style={{ fontSize: 13, fontWeight: "bold", color: COLORS.TEXT_PRIMARY }}>{formatRWF(totalEscrow)}</Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: COLORS.INK }} />
+                      <View>
+                        <Text style={{ fontSize: 10, color: COLORS.TEXT_SECONDARY }}>Spent / Budgeted</Text>
+                        <Text style={{ fontSize: 13, fontWeight: "bold", color: COLORS.TEXT_PRIMARY }}>{formatRWF(Math.max(0, totalBudget - totalEscrow))}</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <PieChart
+                    data={totalBudget > 0 
+                      ? [
+                          { value: totalEscrow, color: COLORS.PRIMARY },
+                          { value: Math.max(0, totalBudget - totalEscrow), color: COLORS.INK }
+                        ]
+                      : [
+                          { value: 1, color: COLORS.PRIMARY },
+                          { value: 0, color: COLORS.INK }
+                        ]
+                    }
+                    donut
+                    radius={50}
+                    innerRadius={30}
+                    innerCircleColor={COLORS.SURFACE}
+                    centerLabelComponent={() => (
+                      <View style={{ justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 11, fontWeight: 'bold', color: COLORS.TEXT_PRIMARY }}>
+                          {totalBudget > 0 ? `${Math.round((totalEscrow / totalBudget) * 100)}%` : "100%"}
+                        </Text>
+                        <Text style={{ fontSize: 8, color: COLORS.TEXT_SECONDARY }}>Free</Text>
+                      </View>
+                    )}
+                  />
+                </View>
+              </View>
+
+              {/* Card 2: Activity breakdown Bar Chart */}
+              <View style={{
+                backgroundColor: COLORS.SURFACE,
+                borderColor: COLORS.BORDER_LIGHT,
+                borderWidth: 1,
+                borderRadius: 14,
+                padding: 16,
+                alignItems: "center"
+              }}>
+                <Text style={{ alignSelf: "flex-start", fontSize: 13, fontWeight: "900", color: COLORS.TEXT_PRIMARY, letterSpacing: 0.5, marginBottom: 12, textTransform: "uppercase" }}>
+                  Portfolio Activity Breakdown
+                </Text>
+                
+                <BarChart
+                  data={[
+                    { value: projects.length, label: "Projects", frontColor: COLORS.PRIMARY },
+                    { value: storeMilestones.length, label: "Milestones", frontColor: "#3B82F6" },
+                    { value: disputes.length, label: "Disputes", frontColor: COLORS.ERROR }
+                  ]}
+                  barWidth={35}
+                  barBorderRadius={4}
+                  frontColor={COLORS.PRIMARY}
+                  noOfSections={3}
+                  yAxisThickness={0}
+                  xAxisThickness={1}
+                  xAxisColor={COLORS.BORDER_LIGHT}
+                  hideRules
+                  labelWidth={65}
+                  height={100}
+                  stepValue={2}
+                  maxValue={8}
+                  yAxisTextStyle={{ color: COLORS.TEXT_SECONDARY, fontSize: 9 }}
+                  xAxisLabelTextStyle={{ color: COLORS.TEXT_PRIMARY, fontSize: 10, fontWeight: "bold" }}
+                />
+              </View>
             </View>
 
             <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, padding: 16 }}>
@@ -154,9 +360,27 @@ export default function ClientIndex() {
                   </Pressable>
                 ))}
                 {projects.length === 0 ? (
-                  <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20 }}>
-                    No projects yet. Create one and the full workflow will appear here.
-                  </Text>
+                  <View style={{ gap: 12 }}>
+                    <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20 }}>
+                      No projects yet. Create one and the full workflow will appear here.
+                    </Text>
+                    <Pressable
+                      onPress={() => router.push("/(client)/create-project")}
+                      style={{
+                        alignItems: "center",
+                        backgroundColor: COLORS.PRIMARY,
+                        borderRadius: 8,
+                        flexDirection: "row",
+                        gap: 8,
+                        justifyContent: "center",
+                        paddingVertical: 12,
+                        marginTop: 4,
+                      }}
+                    >
+                      <Ionicons name="add" size={18} color={COLORS.TEXT_WHITE} />
+                      <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>Create Project</Text>
+                    </Pressable>
+                  </View>
                 ) : null}
               </View>
             </View>

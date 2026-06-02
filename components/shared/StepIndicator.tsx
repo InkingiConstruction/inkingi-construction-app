@@ -26,7 +26,7 @@ export default function StepIndicator({ steps, currentStep, onStepPress }: StepI
     <View
       style={{
         backgroundColor: COLORS.SURFACE,
-        paddingVertical: 16,
+        paddingVertical: 10,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.BORDER_LIGHT,
       }}
@@ -36,7 +36,7 @@ export default function StepIndicator({ steps, currentStep, onStepPress }: StepI
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: 16,
-          gap: 8,
+          gap: 6,
         }}
       >
         {steps.map((step, index) => {
@@ -51,10 +51,10 @@ export default function StepIndicator({ steps, currentStep, onStepPress }: StepI
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: 8,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 24,
+                gap: 6,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 16,
                 backgroundColor: isActive 
                   ? COLORS.PRIMARY_LIGHT 
                   : isCompleted 
@@ -64,9 +64,9 @@ export default function StepIndicator({ steps, currentStep, onStepPress }: StepI
             >
               <View
                 style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 14,
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
                   backgroundColor: isActive 
                     ? COLORS.PRIMARY 
                     : isCompleted 
@@ -77,16 +77,16 @@ export default function StepIndicator({ steps, currentStep, onStepPress }: StepI
                 }}
               >
                 {isCompleted ? (
-                  <Ionicons name="checkmark" size={16} color="#FFF" />
+                  <Ionicons name="checkmark" size={12} color="#FFF" />
                 ) : (
-                  <Text style={{ color: '#FFF', fontSize: 14, fontWeight: 'bold' }}>
+                  <Text style={{ color: '#FFF', fontSize: 11, fontWeight: 'bold' }}>
                     {step.number}
                   </Text>
                 )}
               </View>
               <Text
                 style={{
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: isActive ? 'bold' : '500',
                   color: isActive 
                     ? COLORS.PRIMARY 
@@ -100,9 +100,9 @@ export default function StepIndicator({ steps, currentStep, onStepPress }: StepI
               {index < steps.length - 1 && (
                 <Ionicons
                   name="chevron-forward"
-                  size={16}
+                  size={12}
                   color={COLORS.TEXT_LIGHT}
-                  style={{ marginLeft: 4 }}
+                  style={{ marginLeft: 2 }}
                 />
               )}
             </Pressable>

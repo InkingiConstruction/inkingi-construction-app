@@ -15,15 +15,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { COLORS } from "@/constants/colors";
 import { useAuthStore } from "@/store/auth.store";
-import { useThemeStore } from "@/store/theme.store";
 
 export function ProfileScreen() {
   const user = useAuthStore((state) => state.user);
   const loading = useAuthStore((state) => state.loading);
   const updateProfile = useAuthStore((state) => state.updateProfile);
   const logout = useAuthStore((state) => state.logout);
-  const preference = useThemeStore((state) => state.preference);
-  const setPreference = useThemeStore((state) => state.setPreference);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -200,23 +197,7 @@ export function ProfileScreen() {
             />
           </Group>
 
-          <Group title="PREFERENCE">
-            <MenuRow icon="language-outline" label="Language" value="English (USA)" />
-            <View style={rowStyle}>
-              <View style={rowIconStyle}>
-                <Ionicons name="moon-outline" size={18} color={COLORS.TEXT_SECONDARY} />
-              </View>
-              <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "800" }}>
-                Dark Mode
-              </Text>
-              <Switch
-                value={preference === "dark"}
-                onValueChange={(value) => setPreference(value ? "dark" : "light")}
-                trackColor={{ false: COLORS.CONCRETE, true: "#B9F000" }}
-                thumbColor={COLORS.SURFACE}
-              />
-            </View>
-          </Group>
+
 
           <View style={{ ...groupStyle, marginBottom: 24 }}>
             <MenuRow icon="headset-outline" label="Help Center" />

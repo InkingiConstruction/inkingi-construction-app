@@ -12,6 +12,7 @@ import {
   Pressable,
   Alert,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -45,6 +46,7 @@ export default function Step1_BasicInfo({ data, onUpdate, onNext }: Step1Props) 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const validateField = (field: string, value: any): string => {
     switch (field) {
@@ -155,46 +157,93 @@ export default function Step1_BasicInfo({ data, onUpdate, onNext }: Step1Props) 
         {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
       </View>
 
-      {/* Category */}
-      <View style={{ marginBottom: 20 }}>
+      {/* Category Dropdown */}
+      <View style={{ marginBottom: 20, zIndex: 10 }}>
         <Text style={styles.label}>
           Project Category <Text style={{ color: COLORS.ERROR }}>*</Text>
         </Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          {categories.map((cat) => (
-            <Pressable
-              key={cat.id}
-              onPress={() => handleChange('category', cat.id)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                borderRadius: 24,
-                backgroundColor: basic.category === cat.id 
-                  ? COLORS.PRIMARY_LIGHT 
-                  : COLORS.MUTED,
-                borderWidth: basic.category === cat.id ? 1 : 0,
-                borderColor: basic.category === cat.id ? COLORS.PRIMARY : 'transparent',
-              }}
-            >
-              <Ionicons 
-                name={cat.icon} 
-                size={18} 
-                color={basic.category === cat.id ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} 
-              />
-              <Text 
-                style={{ 
-                  color: basic.category === cat.id ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY,
-                  fontWeight: basic.category === cat.id ? '600' : '400',
-                }}
-              >
-                {cat.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <Pressable
+          onPress={() => setShowDropdown(!showDropdown)}
+          style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {basic.category ? (
+              <>
+                <Ionicons
+                  name={categories.find(c => c.id === basic.category)?.icon || 'construct-outline'}
+                  size={20}
+                  color={COLORS.PRIMARY}
+                />
+                <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: '500' }}>
+                  {categories.find(c => c.id === basic.category)?.label || basic.category}
+                </Text>
+              </>
+            ) : (
+              <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 16 }}>Select a category...</Text>
+            )}
+          </View>
+          <Ionicons name={showDropdown ? 'chevron-up' : 'chevron-down'} size={20} color={COLORS.TEXT_SECONDARY} />
+        </Pressable>
+
+        {showDropdown && (
+          <View
+            style={{
+              backgroundColor: COLORS.SURFACE,
+              borderColor: COLORS.BORDER_LIGHT,
+              borderRadius: 12,
+              borderWidth: 1,
+              marginTop: 6,
+              maxHeight: 200,
+              overflow: 'hidden',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.08,
+              shadowRadius: 8,
+              elevation: 4,
+            }}
+          >
+            <ScrollView nestedScrollEnabled style={{ maxHeight: 200 }}>
+              {categories.map((cat) => (
+                <Pressable
+                  key={cat.id}
+                  onPress={() => {
+                    handleChange('category', cat.id);
+                    setShowDropdown(false);
+                  }}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    borderBottomWidth: 1,
+                    borderBottomColor: COLORS.BORDER_LIGHT,
+                    backgroundColor: basic.category === cat.id
+                      ? COLORS.PRIMARY_LIGHT
+                      : pressed
+                        ? COLORS.MUTED
+                        : COLORS.SURFACE,
+                  })}
+                >
+                  <Ionicons
+                    name={cat.icon}
+                    size={20}
+                    color={basic.category === cat.id ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY}
+                  />
+                  <Text
+                    style={{
+                      color: basic.category === cat.id ? COLORS.PRIMARY : COLORS.TEXT_PRIMARY,
+                      fontWeight: basic.category === cat.id ? '700' : '400',
+                      fontSize: 15,
+                    }}
+                  >
+                    {cat.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
         {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
       </View>
 

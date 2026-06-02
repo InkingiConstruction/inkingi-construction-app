@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -34,10 +35,17 @@ export function NotificationsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 20 }}>
-        <View style={{ gap: 6, marginBottom: 18 }}>
+        {/* Header with Back Button */}
+        <View style={{ alignItems: "center", flexDirection: "row", gap: 12, marginBottom: 16 }}>
+          <Pressable onPress={() => router.back()} hitSlop={12}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
+          </Pressable>
           <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 28, fontWeight: "900" }}>
             Notifications
           </Text>
+        </View>
+
+        <View style={{ gap: 6, marginBottom: 18 }}>
           <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20 }}>
             Live project, account, and workflow alerts from the backend.
           </Text>

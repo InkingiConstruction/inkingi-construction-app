@@ -7,66 +7,90 @@ import { useAuthStore } from "@/store/auth.store";
 type ClientTopBarProps = {
   title: string;
   subtitle?: string;
+  back?: boolean;
 };
 
-export function ClientTopBar({ title, subtitle }: ClientTopBarProps) {
+export function ClientTopBar({ title, subtitle, back = false }: ClientTopBarProps) {
   const user = useAuthStore((state) => state.user);
 
   return (
     <View style={{ gap: 14, marginBottom: 18 }}>
       <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between" }}>
-        <View style={{ flex: 1, paddingRight: 8 }}>
-          <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>
-            CLIENT WORKSPACE
-          </Text>
-          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900" }}>
-            {title}
-          </Text>
-          {subtitle ? (
-            <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20, marginTop: 4 }}>
-              {subtitle}
+        <View style={{ flexDirection: "row", alignItems: "center", flex: 1, paddingRight: 8 }}>
+          {back && (
+            <Pressable
+              onPress={() => router.back()}
+              style={({ pressed }) => ({
+                marginRight: 12,
+                padding: 6,
+                borderRadius: 8,
+                backgroundColor: COLORS.SURFACE,
+                borderWidth: 1,
+                borderColor: COLORS.BORDER_LIGHT,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <Ionicons name="chevron-back" size={24} color={COLORS.TEXT_PRIMARY} />
+            </Pressable>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>
+              {back ? "BACK TO WORKSPACE" : "CLIENT WORKSPACE"}
             </Text>
-          ) : null}
+            <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900" }}>
+              {title}
+            </Text>
+          </View>
         </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <TopButton icon="notifications-outline" onPress={() => router.push("/(client)/notifications")} />
-          <TopButton icon="person-circle-outline" onPress={() => router.push("/(client)/profile")} />
-          <TopButton icon="settings-outline" onPress={() => router.push("/(client)/settings")} />
-        </View>
+        {!back && (
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TopButton icon="notifications-outline" onPress={() => router.push("/(client)/notifications")} />
+            <TopButton icon="person-circle-outline" onPress={() => router.push("/(client)/profile")} />
+            <TopButton icon="settings-outline" onPress={() => router.push("/(client)/settings")} />
+          </View>
+        )}
       </View>
 
-      <View
-        style={{
-          backgroundColor: COLORS.SURFACE,
-          borderColor: COLORS.BORDER_LIGHT,
-          borderRadius: 10,
-          borderWidth: 1,
-          flexDirection: "row",
-          gap: 12,
-          padding: 14,
-        }}
-      >
+      {subtitle ? (
+        <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20, marginTop: 4 }}>
+          {subtitle}
+        </Text>
+      ) : null}
+
+      {!back && (
         <View
           style={{
-            alignItems: "center",
-            backgroundColor: COLORS.PRIMARY_LIGHT,
-            borderRadius: 8,
-            height: 44,
-            justifyContent: "center",
-            width: 44,
+            backgroundColor: COLORS.SURFACE,
+            borderColor: COLORS.BORDER_LIGHT,
+            borderRadius: 10,
+            borderWidth: 1,
+            flexDirection: "row",
+            gap: 12,
+            padding: 14,
           }}
         >
-          <Ionicons name="business-outline" size={22} color={COLORS.PRIMARY_DARK} />
+          <View
+            style={{
+              alignItems: "center",
+              backgroundColor: COLORS.PRIMARY_LIGHT,
+              borderRadius: 8,
+              height: 44,
+              justifyContent: "center",
+              width: 44,
+            }}
+          >
+            <Ionicons name="business-outline" size={22} color={COLORS.PRIMARY_DARK} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>
+              {user?.name || "Client"}
+            </Text>
+            <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 3 }}>
+              Create projects, assign teams, review progress, and release payments.
+            </Text>
+          </View>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>
-            {user?.name || "Client"}
-          </Text>
-          <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 3 }}>
-            Create projects, assign teams, review progress, and release payments.
-          </Text>
-        </View>
-      </View>
+      )}
     </View>
   );
 }

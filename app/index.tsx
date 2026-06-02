@@ -15,16 +15,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import OnboardingScreen from '@/components/onboarding/OnboardingScreen';
 import LandingScreen from './landing';
 import { COLORS } from '@/constants/colors';
+import { useAuthStore, getRoleHome } from '@/store/auth.store';
+import { router } from 'expo-router';
 
 const ONBOARDING_KEY = '@onboarding_completed';
 
 export default function AppIndex() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [onboardingLoading, setOnboardingLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+
+  const authLoading = useAuthStore((state) => state.loading);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
 
   useEffect(() => {
     checkOnboardingStatus();
   }, []);
+
+  useEffect(() => {
+    // If auth state is fully loaded and user is authenticated, redirect directly
+    if (!authLoading && !onboardingLoading) {
+      if (isAuthenticated && user) {
+        router.replace(getRoleHome(user.role) as any);
+      }
+    }
+  }, [authLoading, onboardingLoading, isAuthenticated, user]);
 
   const checkOnboardingStatus = async () => {
     try {
@@ -35,7 +50,7 @@ export default function AppIndex() {
       console.error('Error checking onboarding status:', error);
       setShowOnboarding(true); // Default to showing onboarding on error
     } finally {
-      setIsLoading(false);
+      setOnboardingLoading(false);
     }
   };
 
@@ -48,7 +63,17 @@ export default function AppIndex() {
     }
   };
 
-  if (isLoading) {
+  // While either onboarding or auth check is in progress, show loading spinner
+  if (onboardingLoading || authLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.BACKGROUND }}>
+        <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+      </View>
+    );
+  }
+
+  // If authenticated and user exists, we already trigger redirect, but return loading to avoid flash
+  if (isAuthenticated && user) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.BACKGROUND }}>
         <ActivityIndicator size="large" color={COLORS.PRIMARY} />

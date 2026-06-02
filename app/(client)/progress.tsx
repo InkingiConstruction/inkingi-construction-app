@@ -32,6 +32,7 @@ export default function ClientProgress() {
         <ClientTopBar
           title="Progress"
           subtitle="Follow engineer uploads, milestone state, and supervisor inspection decisions."
+          back={true}
         />
 
         <View style={{ gap: 16 }}>

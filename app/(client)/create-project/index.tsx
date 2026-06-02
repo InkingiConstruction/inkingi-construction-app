@@ -26,11 +26,11 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/colors';
 import StepIndicator from "@/components/shared/StepIndicator";
-import Step1_BasicInfo from './steps/Step1_BasicInfo';
-import Step2_Budget from './steps/Step2_Budget';
-import Step3_Location from './steps/Step3_Location';
-import Step4_Documents from './steps/Step4_Documents';
-import Step5_Review from './steps/Step5_Review';
+import Step1_BasicInfo from './_steps/Step1_BasicInfo';
+import Step2_Budget from './_steps/Step2_Budget';
+import Step3_Location from './_steps/Step3_Location';
+import Step4_Documents from './_steps/Step4_Documents';
+import Step5_Review from './_steps/Step5_Review';
 
 export interface ProjectData {
   // Step 1: Basic Info

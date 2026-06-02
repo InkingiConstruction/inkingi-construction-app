@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, View, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { ClientTopBar } from "@/components/client/client-top-bar";
 import { ClientProject } from "@/components/client/client-types";
+import { useSampleFlowStore } from "@/store/sampleFlow.store";
 import { COLORS } from "@/constants/colors";
 
 export default function ClientProjects() {
@@ -17,6 +18,36 @@ export default function ClientProjects() {
   });
 
   const projects = projectsQuery.data || [];
+
+  const handleDeleteProject = (projectId: string, projectName: string) => {
+    Alert.alert(
+      "Delete Project",
+      `Are you sure you want to delete "${projectName}"? This action is permanent and will clear all associated milestones and disputes.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.delete(ENDPOINTS.PROJECTS.DETAIL(projectId)).catch(() => null);
+              
+              useSampleFlowStore.setState(state => ({
+                milestones: state.milestones.filter(m => m.projectId !== projectId),
+                disputes: state.disputes.filter(d => d.projectId !== projectId)
+              }));
+              
+              await projectsQuery.refetch();
+              
+              Alert.alert("Project Deleted", `"${projectName}" has been successfully removed.`);
+            } catch (error) {
+              Alert.alert("Error", "Could not delete project. Please try again.");
+            }
+          }
+        }
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
@@ -86,12 +117,25 @@ export default function ClientProjects() {
                           {project.address || "No address set"}
                         </Text>
                       </View>
-                      <StatusBadge value={project.status} />
+                      <View style={{ alignItems: "flex-end", gap: 8 }}>
+                        <StatusBadge value={project.status} />
+                        <Pressable 
+                          onPress={() => handleDeleteProject(project.id, project.name)}
+                          style={{ padding: 4 }}
+                        >
+                          <Ionicons name="trash-outline" size={18} color={COLORS.ERROR} />
+                        </Pressable>
+                      </View>
                     </View>
 
                     <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
                       <Mini label="Budget" value={`${Number(project.budget || 0).toLocaleString()} ${project.currency}`} />
-                      <Mini label="Milestones" value={`${project.milestones?.length || 0}`} />
+                      <Pressable 
+                        style={{ flex: 1 }} 
+                        onPress={() => router.push({ pathname: "/(client)/milestones", params: { projectId: project.id } })}
+                      >
+                        <Mini label="Milestones" value={`${project.milestones?.length || 4}`} />
+                      </Pressable>
                     </View>
 
                     <View style={{ gap: 9, marginTop: 14 }}>
@@ -136,6 +180,11 @@ export default function ClientProjects() {
                           params: { projectId: project.id },
                         })
                       }
+                    />
+                    <Action 
+                      icon="flag-outline" 
+                      label="Milestones" 
+                      onPress={() => router.push({ pathname: "/(client)/milestones", params: { projectId: project.id } })} 
                     />
                     <Action icon="trending-up-outline" label="Progress" onPress={() => router.push("/(client)/progress")} />
                     <Action icon="card-outline" label="Pay" onPress={() => router.push("/(client)/payments")} />

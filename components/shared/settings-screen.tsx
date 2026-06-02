@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Switch, Text, View, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -62,25 +63,45 @@ export function SettingsScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
-        {/* Centered Profile Section */}
-        <View style={{ alignItems: "center", marginBottom: 28, marginTop: 10 }}>
+        {/* Header with Back Button */}
+        <View style={{ alignItems: "center", flexDirection: "row", gap: 12, marginBottom: 24 }}>
+          <Pressable onPress={() => router.back()} hitSlop={12}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
+          </Pressable>
+          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 20, fontWeight: "900" }}>
+            Settings
+          </Text>
+        </View>
+
+        {/* Profile Navigation Card */}
+        <Pressable
+          onPress={() => router.push("/(client)/profile")}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: COLORS.SURFACE,
+            borderColor: COLORS.BORDER_LIGHT,
+            borderWidth: 1,
+            borderRadius: 16,
+            padding: 16,
+            marginBottom: 24,
+            gap: 12,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 6,
+            elevation: 2
+          }}
+        >
           <View
             style={{
-              width: 90,
-              height: 90,
-              borderRadius: 45,
+              width: 52,
+              height: 52,
+              borderRadius: 26,
               backgroundColor: COLORS.PRIMARY_LIGHT,
               alignItems: "center",
               justifyContent: "center",
-              borderWidth: 3,
-              borderColor: COLORS.PRIMARY,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.1,
-              shadowRadius: 10,
-              elevation: 4,
-              marginBottom: 14,
-              overflow: "hidden",
+              overflow: "hidden"
             }}
           >
             {user?.avatar || user?.image ? (
@@ -90,28 +111,28 @@ export function SettingsScreen() {
                 resizeMode="cover"
               />
             ) : (
-              <Text style={{ fontSize: 36, fontWeight: "bold", color: COLORS.PRIMARY_DARK }}>
+              <Text style={{ fontSize: 22, fontWeight: "bold", color: COLORS.PRIMARY_DARK }}>
                 {getFirstLetter()}
               </Text>
             )}
           </View>
-          <Text style={{ fontSize: 18, fontWeight: "700", color: COLORS.TEXT_PRIMARY }}>
-            {user?.email}
-          </Text>
-          <View
-            style={{
-              marginTop: 6,
-              backgroundColor: COLORS.PRIMARY_LIGHT,
-              paddingHorizontal: 12,
-              paddingVertical: 4,
-              borderRadius: 12,
-            }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: "800", color: COLORS.PRIMARY_DARK, textTransform: "capitalize" }}>
-              {user?.role || "user"}
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "bold", color: COLORS.TEXT_PRIMARY }}>
+              {user?.name || "Account Profile"}
+            </Text>
+            <Text style={{ fontSize: 12, color: COLORS.TEXT_SECONDARY, marginTop: 2 }}>
+              {user?.email || "Manage personal details & KYC"}
             </Text>
           </View>
-        </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ backgroundColor: COLORS.PRIMARY_LIGHT, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+              <Text style={{ fontSize: 10, color: COLORS.PRIMARY_DARK, fontWeight: "bold", textTransform: "uppercase" }}>
+                {user?.role || "Client"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.TEXT_LIGHT} />
+          </View>
+        </Pressable>
 
         {/* Notifications Section */}
         <View style={{ gap: 6, marginBottom: 12 }}>

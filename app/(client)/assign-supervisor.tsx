@@ -50,6 +50,7 @@ export default function AssignSupervisor() {
         <ClientTopBar
           title="Assign Supervisor"
           subtitle="Add the supervisor who will inspect milestones and validate progress."
+          back={true}
         />
 
         {projectsQuery.isLoading || supervisorsQuery.isLoading ? (
