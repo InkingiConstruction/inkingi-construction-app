@@ -279,7 +279,7 @@ export function MessagesScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
-        <View style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
+        <View style={{ flex: 1, backgroundColor: "#FAFBFC" }}>
           <DottedBackground />
           <View
             style={{
@@ -297,7 +297,7 @@ export function MessagesScreen() {
             <View
               style={{
                 alignItems: "center",
-                backgroundColor: COLORS.MUTED,
+                backgroundColor: "#EEF2F7",
                 borderRadius: 18,
                 gap: 6,
                 paddingHorizontal: 18,
@@ -381,7 +381,7 @@ export function MessagesScreen() {
                 borderRadius: 22,
                 borderWidth: 1,
                 padding: 10,
-                shadowColor: COLORS.INK,
+                shadowColor: "#0F172A",
                 shadowOpacity: 0.08,
                 shadowRadius: 18,
               }}
@@ -403,7 +403,7 @@ export function MessagesScreen() {
                     <Pressable
                       onPress={() => setSelectedConversationId(item.id)}
                       style={{
-                        backgroundColor: selected ? COLORS.PRIMARY : COLORS.MUTED,
+                        backgroundColor: selected ? COLORS.PRIMARY : "#EEF2F7",
                         borderRadius: 14,
                         flexDirection: "row",
                         gap: 6,
@@ -490,7 +490,7 @@ export function MessagesScreen() {
                 <View
                   style={{
                     alignItems: "center",
-                    backgroundColor: COLORS.MUTED,
+                    backgroundColor: "#F8FAFC",
                     borderRadius: 10,
                     flexDirection: "row",
                     gap: 10,
@@ -514,7 +514,7 @@ export function MessagesScreen() {
                 <View
                   style={{
                     alignItems: "center",
-                    backgroundColor: COLORS.MUTED,
+                    backgroundColor: "#F8FAFC",
                     borderLeftColor: COLORS.PRIMARY,
                     borderLeftWidth: 3,
                     borderRadius: 10,
@@ -624,19 +624,19 @@ function ChatBubble({
     <View style={{ alignItems: isMine ? "flex-end" : "flex-start" }}>
       <View
         style={{
-          backgroundColor: isMine ? COLORS.PRIMARY : COLORS.SURFACE,
+          backgroundColor: isMine ? "#4F86E8" : COLORS.SURFACE,
           borderRadius: 12,
           borderTopRightRadius: isMine ? 12 : 12,
           borderWidth: isMine ? 0 : 1,
           borderColor: COLORS.BORDER_LIGHT,
           maxWidth: "82%",
           padding: 14,
-          shadowColor: COLORS.INK,
+          shadowColor: "#0F172A",
           shadowOpacity: isMine ? 0 : 0.05,
           shadowRadius: 12,
         }}
       >
-        <Text style={{ color: isMine ? COLORS.TEXT_WHITE : COLORS.PRIMARY, fontSize: 12, fontWeight: "900", marginBottom: 4 }}>
+        <Text style={{ color: isMine ? COLORS.TEXT_WHITE : "#4F86E8", fontSize: 12, fontWeight: "900", marginBottom: 4 }}>
           {isMine ? "You" : item.sender?.name || "Inkingi"}
         </Text>
         <Text style={{ color: isMine ? COLORS.TEXT_WHITE : COLORS.TEXT_PRIMARY, fontSize: 15, lineHeight: 21 }}>
@@ -749,7 +749,7 @@ function DottedBackground() {
         <View
           key={dot}
           style={{
-            backgroundColor: COLORS.BORDER,
+            backgroundColor: "#CBD5E1",
             borderRadius: 1,
             height: 2,
             width: 2,

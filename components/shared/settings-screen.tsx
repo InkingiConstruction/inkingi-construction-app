@@ -6,7 +6,6 @@ import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { useAuthStore, User } from "@/store/auth.store";
-import { ThemePreference, useThemeStore } from "@/store/theme.store";
 
 type Prefs = {
   push: boolean;
@@ -16,8 +15,6 @@ type Prefs = {
 
 export function SettingsScreen() {
   const user = useAuthStore((state) => state.user);
-  const themePreference = useThemeStore((state) => state.preference);
-  const setThemePreference = useThemeStore((state) => state.setPreference);
   const [prefs, setPrefs] = useState<Prefs>({ push: true, email: true, sms: false });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -56,11 +53,9 @@ export function SettingsScreen() {
             Settings
           </Text>
           <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20 }}>
-            Control appearance and how Inkingi sends project and account updates.
+            Control how Inkingi sends project and account updates.
           </Text>
         </View>
-
-        <ThemePanel preference={themePreference} onChange={setThemePreference} />
 
         <View
           style={{
@@ -123,76 +118,6 @@ export function SettingsScreen() {
         </Pressable>
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function ThemePanel({
-  preference,
-  onChange,
-}: {
-  preference: ThemePreference;
-  onChange: (preference: ThemePreference) => void;
-}) {
-  const options: { label: string; value: ThemePreference; icon: keyof typeof Ionicons.glyphMap }[] = [
-    { label: "System", value: "system", icon: "phone-portrait-outline" },
-    { label: "Light", value: "light", icon: "sunny-outline" },
-    { label: "Dark", value: "dark", icon: "moon-outline" },
-  ];
-
-  return (
-    <View
-      style={{
-        backgroundColor: COLORS.SURFACE,
-        borderColor: COLORS.BORDER_LIGHT,
-        borderRadius: 18,
-        borderWidth: 1,
-        marginBottom: 16,
-        padding: 16,
-      }}
-    >
-      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: "900" }}>
-        Appearance
-      </Text>
-      <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
-        Match your phone or choose a fixed mode.
-      </Text>
-      <View style={{ backgroundColor: COLORS.MUTED, borderRadius: 12, flexDirection: "row", marginTop: 14, padding: 4 }}>
-        {options.map((option) => {
-          const selected = preference === option.value;
-          return (
-            <Pressable
-              key={option.value}
-              onPress={() => onChange(option.value)}
-              style={{
-                alignItems: "center",
-                backgroundColor: selected ? COLORS.SURFACE : "transparent",
-                borderRadius: 10,
-                flex: 1,
-                flexDirection: "row",
-                gap: 6,
-                justifyContent: "center",
-                paddingVertical: 11,
-              }}
-            >
-              <Ionicons
-                name={option.icon}
-                size={15}
-                color={selected ? COLORS.PRIMARY_DARK : COLORS.TEXT_SECONDARY}
-              />
-              <Text
-                style={{
-                  color: selected ? COLORS.PRIMARY_DARK : COLORS.TEXT_SECONDARY,
-                  fontSize: 12,
-                  fontWeight: "900",
-                }}
-              >
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
   );
 }
 
