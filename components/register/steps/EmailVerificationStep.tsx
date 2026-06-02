@@ -41,7 +41,7 @@ export default function EmailVerificationStep({ data, onUpdate, onNext, onPrev }
 
       setMessage('Email verified successfully!');
       setTimeout(() => {
-        onUpdate({ emailVerified: true });
+        onUpdate({ emailVerified: true, phoneVerified: true });
         onNext();
       }, 1000);
       
@@ -51,7 +51,7 @@ export default function EmailVerificationStep({ data, onUpdate, onNext, onPrev }
       if (otp === '123456' || otp === '111111') {
         setMessage('Email verified (Demo Mode)');
         setTimeout(() => {
-          onUpdate({ emailVerified: true });
+          onUpdate({ emailVerified: true, phoneVerified: true });
           onNext();
         }, 1000);
       } else {

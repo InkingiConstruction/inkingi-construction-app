@@ -18,7 +18,6 @@ import ProgressStepper from '@/components/register/ProgressStepper';
 import RoleSelectionStep from '@/components/register/steps/RoleSelectionStep';
 import BasicInfoStep from '@/components/register/steps/BasicInfoStep';
 import EmailVerificationStep from '@/components/register/steps/EmailVerificationStep';
-import PhoneVerificationStep from '@/components/register/steps/PhoneVerificationStep';
 import ClientKYSStep from '@/components/register/steps/ClientKYSStep';
 import EngineerTypeStep from '@/components/register/steps/EngineerTypeStep';
 import IndividualEngineerStep from '@/components/register/steps/IndividualEngineerStep';
@@ -224,7 +223,7 @@ export default function RegisterFlow() {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getSteps(role: UserRole): string[] {
-  const base = ['Credentials', 'Verify Email', 'Verify Phone'];
+  const base = ['Credentials', 'Verify Email'];
   switch (role) {
     case 'client':    return [...base, 'KYC Docs', 'Review', 'Done'];
     case 'engineer':  return [...base, 'Category', 'Profile', 'Documents', 'Review', 'Done'];
@@ -239,10 +238,9 @@ function renderStep(role: UserRole, step: number, props: any) {
     const map: Record<number, React.ReactElement | null> = {
       0: <BasicInfoStep {...props} />,
       1: <EmailVerificationStep {...props} />,
-      2: <PhoneVerificationStep {...props} />,
-      3: <ClientKYSStep {...props} />,
-      4: <ReviewSubmitStep {...props} />,
-      5: <VerificationPendingStep />,
+      2: <ClientKYSStep {...props} />,
+      3: <ReviewSubmitStep {...props} />,
+      4: <VerificationPendingStep />,
     };
     return map[step] ?? null;
   }
@@ -251,12 +249,11 @@ function renderStep(role: UserRole, step: number, props: any) {
     const map: Record<number, React.ReactElement | null> = {
       0: <BasicInfoStep {...props} />,
       1: <EmailVerificationStep {...props} />,
-      2: <PhoneVerificationStep {...props} />,
-      3: <EngineerTypeStep {...props} />,
-      4: isCompany ? <EngineeringCompanyStep {...props} /> : <IndividualEngineerStep {...props} />,
-      5: <DocumentUploadStep {...props} />,
-      6: <ReviewSubmitStep {...props} />,
-      7: <VerificationPendingStep />,
+      2: <EngineerTypeStep {...props} />,
+      3: isCompany ? <EngineeringCompanyStep {...props} /> : <IndividualEngineerStep {...props} />,
+      4: <DocumentUploadStep {...props} />,
+      5: <ReviewSubmitStep {...props} />,
+      6: <VerificationPendingStep />,
     };
     return map[step] ?? null;
   }
@@ -265,12 +262,11 @@ function renderStep(role: UserRole, step: number, props: any) {
     const map: Record<number, React.ReactElement | null> = {
       0: <BasicInfoStep {...props} />,
       1: <EmailVerificationStep {...props} />,
-      2: <PhoneVerificationStep {...props} />,
-      3: <SupervisorTypeStep {...props} />,
-      4: isCompany ? <InspectionCompanyStep {...props} /> : <IndependentSupervisorStep {...props} />,
-      5: <DocumentUploadStep {...props} />,
-      6: <ReviewSubmitStep {...props} />,
-      7: <VerificationPendingStep />,
+      2: <SupervisorTypeStep {...props} />,
+      3: isCompany ? <InspectionCompanyStep {...props} /> : <IndependentSupervisorStep {...props} />,
+      4: <DocumentUploadStep {...props} />,
+      5: <ReviewSubmitStep {...props} />,
+      6: <VerificationPendingStep />,
     };
     return map[step] ?? null;
   }
@@ -278,15 +274,14 @@ function renderStep(role: UserRole, step: number, props: any) {
     const map: Record<number, React.ReactElement | null> = {
       0: <BasicInfoStep {...props} />,
       1: <EmailVerificationStep {...props} />,
-      2: <PhoneVerificationStep {...props} />,
-      3: <SupplierInfoStep {...props} />,
-      4: <SupplierCategoriesStep {...props} />,
-      5: <SupplierCoverageStep {...props} />,
-      6: <SupplierLocationStep {...props} />,
-      7: <SupplierPaymentStep {...props} />,
-      8: <DocumentUploadStep {...props} />,
-      9: <ReviewSubmitStep {...props} />,
-      10: <VerificationPendingStep />,
+      2: <SupplierInfoStep {...props} />,
+      3: <SupplierCategoriesStep {...props} />,
+      4: <SupplierCoverageStep {...props} />,
+      5: <SupplierLocationStep {...props} />,
+      6: <SupplierPaymentStep {...props} />,
+      7: <DocumentUploadStep {...props} />,
+      8: <ReviewSubmitStep {...props} />,
+      9: <VerificationPendingStep />,
     };
     return map[step] ?? null;
   }
