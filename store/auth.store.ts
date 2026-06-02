@@ -43,6 +43,7 @@ interface AuthState {
     displayUsername?: string;
     notificationPrefs?: Record<string, boolean>;
     bio?: string;
+    image?: string;
   }) => Promise<void>;
 }
 
@@ -155,14 +156,43 @@ export const useAuthStore = create<AuthState>((set) => ({
   updateProfile: async (data) => {
     set({ loading: true });
     try {
-      const response = await api.patch<{ user: User }>(ENDPOINTS.AUTH.UPDATE_PROFILE, {
-        name: data.name,
-        username: data.username,
-        displayUsername: data.displayUsername,
-        phoneNumber: data.phoneNumber,
-        notificationPrefs: data.notificationPrefs,
-        bio: data.bio,
-      });
+      const hasLocalImage =
+        typeof data.image === "string" && data.image.startsWith("file");
+      const payload = hasLocalImage
+        ? new FormData()
+        : {
+            name: data.name,
+            username: data.username,
+            displayUsername: data.displayUsername,
+            phoneNumber: data.phoneNumber,
+            notificationPrefs: data.notificationPrefs,
+            bio: data.bio,
+            image: data.image,
+          };
+
+      if (payload instanceof FormData) {
+        payload.append("name", data.name);
+        if (data.username !== undefined) payload.append("username", data.username);
+        if (data.displayUsername !== undefined) payload.append("displayUsername", data.displayUsername);
+        if (data.phoneNumber !== undefined) payload.append("phoneNumber", data.phoneNumber);
+        if (data.bio !== undefined) payload.append("bio", data.bio);
+        if (data.notificationPrefs !== undefined) {
+          payload.append("notificationPrefs", JSON.stringify(data.notificationPrefs));
+        }
+        payload.append("image", {
+          uri: data.image,
+          name: "profile-image.jpg",
+          type: "image/jpeg",
+        } as unknown as Blob);
+      }
+
+      const response = await api.patch<{ user: User }>(
+        ENDPOINTS.AUTH.UPDATE_PROFILE,
+        payload,
+        payload instanceof FormData
+          ? { headers: { "Content-Type": "multipart/form-data" } }
+          : undefined,
+      );
       set({ user: response.data.user, isAuthenticated: true });
     } finally {
       set({ loading: false });

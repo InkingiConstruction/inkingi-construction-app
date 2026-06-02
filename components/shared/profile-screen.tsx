@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -27,6 +29,7 @@ export function ProfileScreen() {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [imageUri, setImageUri] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -34,6 +37,7 @@ export function ProfileScreen() {
     setName(user?.name || "");
     setUsername(user?.username || user?.displayUsername || "");
     setPhoneNumber(user?.phoneNumber || user?.phone || "");
+    setImageUri(user?.image || user?.avatar || "");
   }, [user]);
 
   const completion = useMemo(() => {
@@ -54,10 +58,33 @@ export function ProfileScreen() {
         username: username.trim(),
         displayUsername: username.trim(),
         phoneNumber: phoneNumber.trim(),
+        image: imageUri,
       });
       setMessage("Profile updated successfully.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update profile");
+    }
+  };
+
+  const pickProfileImage = async () => {
+    setMessage("");
+    setError("");
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permission.status !== "granted") {
+      Alert.alert("Permission needed", "Allow gallery access to update your profile photo.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      mediaTypes: ["images"],
+      quality: 0.82,
+    });
+
+    if (!result.canceled && result.assets[0]?.uri) {
+      setImageUri(result.assets[0].uri);
     }
   };
 
@@ -132,7 +159,8 @@ export function ProfileScreen() {
               }}
             />
             <View style={{ alignItems: "center", flexDirection: "row", gap: 14 }}>
-              <View
+              <Pressable
+                onPress={pickProfileImage}
                 style={{
                   alignItems: "center",
                   backgroundColor: COLORS.SURFACE,
@@ -145,9 +173,9 @@ export function ProfileScreen() {
                   width: 64,
                 }}
               >
-                {user?.image || user?.avatar ? (
+                {imageUri ? (
                   <Image
-                    source={{ uri: user.image || user.avatar || "" }}
+                    source={{ uri: imageUri }}
                     style={{ height: 64, width: 64 }}
                   />
                 ) : (
@@ -155,7 +183,24 @@ export function ProfileScreen() {
                     {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
                   </Text>
                 )}
-              </View>
+                <View
+                  style={{
+                    alignItems: "center",
+                    backgroundColor: COLORS.GOLD,
+                    borderColor: COLORS.PRIMARY_DARK,
+                    borderRadius: 12,
+                    borderWidth: 2,
+                    bottom: -4,
+                    height: 24,
+                    justifyContent: "center",
+                    position: "absolute",
+                    right: -4,
+                    width: 24,
+                  }}
+                >
+                  <Ionicons name="camera" size={12} color={COLORS.INK} />
+                </View>
+              </Pressable>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 21, fontWeight: "900" }}>
                   {user?.name || "Account user"}
@@ -187,6 +232,22 @@ export function ProfileScreen() {
                   </Text>
                 </View>
               </View>
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 8,
+                marginTop: 16,
+              }}
+            >
+              <StatusPill
+                icon="person-badge-outline"
+                label={(user?.role || "client").toUpperCase()}
+              />
+              <StatusPill
+                icon="document-text-outline"
+                label={(user?.kycStatus || "not submitted").replace(/_/g, " ").toUpperCase()}
+              />
             </View>
           </View>
 
@@ -271,14 +332,29 @@ export function ProfileScreen() {
               value={phoneNumber}
               onChangeText={setPhoneNumber}
             />
+            <MenuRow icon="mail-outline" label="Email" value={user?.email || "No email"} />
+            <MenuRow icon="shield-checkmark-outline" label="Role" value={user?.role || "client"} />
+          </Group>
+
+          <Group title="VERIFICATION">
             <MenuRow
-              icon="shield-checkmark-outline"
-              label="Role & verification"
-              value={user?.role || "client"}
+              icon={user?.emailVerified ? "checkmark-circle-outline" : "time-outline"}
+              label="Email status"
+              value={user?.emailVerified ? "verified" : "pending"}
+            />
+            <MenuRow
+              icon={user?.phoneNumberVerified ? "checkmark-circle-outline" : "time-outline"}
+              label="Phone status"
+              value={user?.phoneNumberVerified ? "verified" : "pending"}
+            />
+            <MenuRow
+              icon="document-text-outline"
+              label="KYC status"
+              value={(user?.kycStatus || "not submitted").replace(/_/g, " ")}
             />
           </Group>
 
-          <Group title="PREFERENCE">
+          <Group title="PREFERENCES">
             <MenuRow icon="language-outline" label="Language" value="English (USA)" />
             <View style={rowStyle}>
               <View style={rowIconStyle}>
@@ -297,7 +373,7 @@ export function ProfileScreen() {
           </Group>
 
           <View style={{ ...groupStyle, marginBottom: 24 }}>
-            <MenuRow icon="headset-outline" label="Help Center" />
+            <MenuRow icon="headset-outline" label="Help Center" value="Support" />
           </View>
 
           <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between" }}>
@@ -352,6 +428,35 @@ const rowIconStyle = {
   justifyContent: "center" as const,
   width: 24,
 };
+
+function StatusPill({
+  icon,
+  label,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+}) {
+  return (
+    <View
+      style={{
+        alignItems: "center",
+        backgroundColor: "rgba(255, 255, 255, 0.12)",
+        borderColor: "rgba(255, 255, 255, 0.18)",
+        borderRadius: 999,
+        borderWidth: 1,
+        flexDirection: "row",
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+      }}
+    >
+      <Ionicons name={icon} size={13} color={COLORS.GOLD} />
+      <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 10, fontWeight: "900" }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
