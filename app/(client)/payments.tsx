@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useStripe } from "@stripe/stripe-react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
@@ -11,6 +12,7 @@ import { COLORS } from "@/constants/colors";
 
 export default function ClientPayments() {
   const queryClient = useQueryClient();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [escrowId, setEscrowId] = useState("");
   const [amount, setAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -46,6 +48,62 @@ export default function ClientPayments() {
       Alert.alert("Deposit started", "MTN MoMo payment prompt has been requested.");
     },
     onError: (error) => Alert.alert("Deposit failed", error instanceof Error ? error.message : "Try again."),
+  });
+
+  const stripeDepositMutation = useMutation({
+    mutationFn: async () => {
+      if (!escrowId || !amount.trim()) {
+        throw new Error("Choose an escrow account and amount.");
+      }
+
+      if (!process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
+        throw new Error("Stripe publishable key is not configured for this build.");
+      }
+
+      const selectedEscrow = escrows.find((item) => item.id === escrowId);
+      const response = await api.post<{
+        data: {
+          clientSecret: string;
+          paymentIntentId: string;
+        };
+      }>(ENDPOINTS.ESCROW_ACCOUNTS.DEPOSIT_STRIPE(escrowId), {
+        amount: Number(amount),
+        currency: selectedEscrow?.currency || selectedEscrow?.project?.currency || "rwf",
+      });
+
+      const clientSecret = response.data.data.clientSecret;
+
+      if (!clientSecret) {
+        throw new Error("Stripe did not return a payment secret.");
+      }
+
+      const initResult = await initPaymentSheet({
+        merchantDisplayName: "Inkingi Construction",
+        paymentIntentClientSecret: clientSecret,
+        returnURL: "inkingi://stripe-redirect",
+      });
+
+      if (initResult.error) {
+        throw new Error(initResult.error.message);
+      }
+
+      const paymentResult = await presentPaymentSheet();
+
+      if (paymentResult.error) {
+        throw new Error(paymentResult.error.message);
+      }
+
+      return response.data.data;
+    },
+    onSuccess: async () => {
+      setAmount("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["client-escrow-accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-transactions"] }),
+      ]);
+      Alert.alert("Payment completed", "Your Stripe card payment was completed.");
+    },
+    onError: (error) => Alert.alert("Stripe payment failed", error instanceof Error ? error.message : "Try again."),
   });
 
   const releaseMutation = useMutation({
@@ -101,7 +159,7 @@ export default function ClientPayments() {
               </Text>
             </View>
 
-            <Panel title="Fund escrow with MTN MoMo">
+            <Panel title="Fund escrow">
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
                 {escrows.map((escrow) => (
                   <Pressable
@@ -126,13 +184,21 @@ export default function ClientPayments() {
                 ))}
               </ScrollView>
               <Field label="Amount" value={amount} onChangeText={setAmount} placeholder="500000" keyboardType="numeric" />
-              <Field label="Phone number" value={phoneNumber} onChangeText={setPhoneNumber} placeholder="+250788000000" keyboardType="phone-pad" />
               <Button
-                icon="phone-portrait-outline"
-                label={depositMutation.isPending ? "Requesting prompt..." : "Request MoMo deposit"}
-                loading={depositMutation.isPending}
-                onPress={() => depositMutation.mutate()}
+                icon="card-outline"
+                label={stripeDepositMutation.isPending ? "Opening Stripe..." : "Pay with card"}
+                loading={stripeDepositMutation.isPending}
+                onPress={() => stripeDepositMutation.mutate()}
               />
+              <View style={{ borderColor: COLORS.BORDER_LIGHT, borderTopWidth: 1, marginTop: 2, paddingTop: 12 }}>
+                <Field label="Phone number" value={phoneNumber} onChangeText={setPhoneNumber} placeholder="+250788000000" keyboardType="phone-pad" />
+                <Button
+                  icon="phone-portrait-outline"
+                  label={depositMutation.isPending ? "Requesting prompt..." : "Request MoMo deposit"}
+                  loading={depositMutation.isPending}
+                  onPress={() => depositMutation.mutate()}
+                />
+              </View>
             </Panel>
 
             <Panel title="Milestones awaiting release">
