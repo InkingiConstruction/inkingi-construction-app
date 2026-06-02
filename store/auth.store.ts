@@ -60,8 +60,14 @@ export const getRoleHome = (role?: string | null) => {
 export const getPostAuthRoute = (user?: User | null) => {
   if (user && !user.emailVerified) {
     return {
-      pathname: "/(auth)/verify-email",
-      params: { email: user.email },
+      pathname: "/(auth)/register",
+      params: {
+        step: "verify-email",
+        role: user.role || "client",
+        email: user.email,
+        fullName: user.name,
+        phoneNumber: user.phoneNumber || user.phone || "",
+      },
     };
   }
 
