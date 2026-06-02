@@ -24,8 +24,10 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
           <StatusBar
+            hidden={false}
             style={isDark ? "light" : "dark"}
             backgroundColor={colors.BACKGROUND}
+            translucent={false}
           />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />

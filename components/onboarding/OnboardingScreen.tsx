@@ -22,7 +22,6 @@ import {
   FlatList,
   ImageBackground,
   Platform,
-  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -108,7 +107,6 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps) 
 
   return (
     <>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <ImageBackground
         source={require('../../assets/inkingi-banner.jpg')}
         style={{ flex: 1, width: '100%', height: '100%' }}
