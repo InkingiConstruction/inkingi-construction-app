@@ -135,16 +135,21 @@ export default function RegisterFlow() {
     fullName?: string;
     phoneNumber?: string;
   }>();
+  const paramRole = asParam(params.role);
+  const paramStep = asParam(params.step);
+  const paramEmail = asParam(params.email);
+  const paramFullName = asParam(params.fullName);
+  const paramPhoneNumber = asParam(params.phoneNumber);
   const shouldResumeEmailVerification =
-    asParam(params.step) === RESUME_VERIFY_STEP && Boolean(asParam(params.email));
+    paramStep === RESUME_VERIFY_STEP && Boolean(paramEmail);
 
   // Step -1 = role selection (fullscreen, no progress bar)
   // Step 0+ = role-specific steps
   const [roleSelected, setRoleSelected] = useState<boolean>(
-    shouldResumeEmailVerification || !!params.role,
+    shouldResumeEmailVerification || !!paramRole,
   );
   const [role, setRole] = useState<UserRole>(
-    (params.role as UserRole) || "client",
+    (paramRole as UserRole) || "client",
   );
   const [loading, setLoading] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -152,7 +157,7 @@ export default function RegisterFlow() {
   const storeRegister = useAuthStore((s) => s.register);
 
   const [data, setData] = useState<RegistrationData>(
-    DEFAULT_DATA((params.role as UserRole) || "client"),
+    DEFAULT_DATA((paramRole as UserRole) || "client"),
   );
 
   const persist = useCallback((updated: RegistrationData) => {
@@ -163,7 +168,12 @@ export default function RegisterFlow() {
   useEffect(() => {
     (async () => {
       if (shouldResumeEmailVerification) {
-        const resumed = createEmailVerificationResume(params);
+        const resumed = createEmailVerificationResume({
+          role: paramRole,
+          email: paramEmail,
+          fullName: paramFullName,
+          phoneNumber: paramPhoneNumber,
+        });
         setRole(resumed.basic.role);
         setRoleSelected(true);
         setData(resumed);
@@ -187,7 +197,14 @@ export default function RegisterFlow() {
       }
       setIsReady(true);
     })();
-  }, [params, persist, shouldResumeEmailVerification]);
+  }, [
+    paramEmail,
+    paramFullName,
+    paramPhoneNumber,
+    paramRole,
+    persist,
+    shouldResumeEmailVerification,
+  ]);
 
   const handleUpdate = useCallback(
     (updates: Partial<RegistrationData>) => {
