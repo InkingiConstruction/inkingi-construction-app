@@ -1,15 +1,39 @@
+/**
+ * @fileoverview Progress stepper component for multi-step registration
+ * Shows step bars and allows clicking on completed bars to navigate back
+ * 
+ * @responsibility
+ * - Display current step title and step count
+ * - Show visual rectangular bars for each step
+ * - Active step has larger width
+ * - Allow clicking on completed bars to go back to previous steps
+ */
+
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { COLORS } from '@/constants/colors';
 
 interface ProgressStepperProps {
   currentStep: number;
   steps: string[];
+  onStepPress?: (stepIndex: number) => void;
+  allowBackNavigation?: boolean;
 }
 
-export default function ProgressStepper({ currentStep, steps }: ProgressStepperProps) {
+export default function ProgressStepper({ 
+  currentStep, 
+  steps, 
+  onStepPress,
+  allowBackNavigation = true 
+}: ProgressStepperProps) {
   const totalSteps = steps.length;
-  const progressPercent = ((currentStep) / (totalSteps - 1)) * 100;
+
+  const handleDotPress = (index: number) => {
+    // Only allow navigation to completed steps (previous steps)
+    if (allowBackNavigation && index < currentStep && onStepPress) {
+      onStepPress(index);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -23,26 +47,32 @@ export default function ProgressStepper({ currentStep, steps }: ProgressStepperP
         </Text>
       </View>
 
-      {/* Progress Bar */}
-      {/* <View style={styles.progressBarBg}>
-        <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
-      </View> */}
-
-      {/* Mini dots indicator (if steps count is reasonable) */}
+      {/* Rectangular bar indicators - fixed width, no flex */}
       <View style={styles.dotsRow}>
         {steps.map((_, index) => {
           const isCompleted = index < currentStep;
           const isActive = index === currentStep;
           
+          // Active bar is wider, completed and pending are thinner
+          let barWidth = 8;
+          if (isActive) barWidth = 32;
+          
           return (
-            <View
+            <Pressable
               key={index}
-              style={[
-                styles.dot,
-                isActive && styles.activeDot,
-                isCompleted && styles.completedDot,
-              ]}
-            />
+              onPress={() => handleDotPress(index)}
+              disabled={!allowBackNavigation || !isCompleted}
+              style={styles.barWrapper}
+            >
+              <View
+                style={[
+                  styles.bar,
+                  { width: barWidth },
+                  isActive && styles.activeBar,
+                  isCompleted && styles.completedBar,
+                ]}
+              />
+            </Pressable>
           );
         })}
       </View>
@@ -52,8 +82,8 @@ export default function ProgressStepper({ currentStep, steps }: ProgressStepperP
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
     paddingBottom: 8,
     backgroundColor: COLORS.BACKGROUND,
   },
@@ -64,42 +94,35 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   stepTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: COLORS.TEXT_PRIMARY,
   },
   stepCount: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: COLORS.PRIMARY,
   },
-  progressBarBg: {
-    height: 6,
-    backgroundColor: COLORS.BORDER_LIGHT,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: COLORS.PRIMARY,
-    borderRadius: 3,
-  },
   dotsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    gap: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 6,
   },
-  dot: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
+  barWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bar: {
+    height: 3,
+    borderRadius: 1.5,
     backgroundColor: COLORS.BORDER_LIGHT,
   },
-  activeDot: {
+  activeBar: {
     backgroundColor: COLORS.PRIMARY,
   },
-  completedDot: {
-    backgroundColor: COLORS.PRIMARY_DARK,
+  completedBar: {
+    backgroundColor: COLORS.SUCCESS,
   },
 });
