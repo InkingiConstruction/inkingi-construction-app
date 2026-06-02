@@ -19,6 +19,7 @@ export const ENDPOINTS = {
   MESSAGES: {
     LIST: "/messages",
     CREATE: "/messages",
+    CONVERSATIONS: "/messages/conversations",
   },
   PROJECTS: {
     LIST: "/projects",
