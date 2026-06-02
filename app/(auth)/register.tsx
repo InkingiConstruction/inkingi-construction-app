@@ -1,206 +1,300 @@
-import React, { useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
-import { Link, router } from "expo-router";
+import React, { useState, useEffect, useCallback } from 'react';
 import {
+  View,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
-  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
   Text,
-  TextInput,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { COLORS } from "@/constants/colors";
-import { useAuthStore } from "@/store/auth.store";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
+import { COLORS } from '@/constants/colors';
+import { useAuthStore } from '@/store/auth.store';
+import { api } from '@/api/api';
+import { ENDPOINTS } from '@/api/endpoints';
 
-const roles = [
-  { label: "Client", value: "client", icon: "home-outline" as const },
-  { label: "Engineer", value: "engineer", icon: "construct-outline" as const },
-  { label: "Supervisor", value: "supervisor", icon: "shield-checkmark-outline" as const },
-  { label: "Supplier", value: "supplier", icon: "cube-outline" as const },
-];
+import ProgressStepper from '@/components/register/ProgressStepper';
+import RoleSelectionStep from '@/components/register/steps/RoleSelectionStep';
+import BasicInfoStep from '@/components/register/steps/BasicInfoStep';
+import EmailVerificationStep from '@/components/register/steps/EmailVerificationStep';
+import PhoneVerificationStep from '@/components/register/steps/PhoneVerificationStep';
+import ClientKYSStep from '@/components/register/steps/ClientKYSStep';
+import EngineerTypeStep from '@/components/register/steps/EngineerTypeStep';
+import IndividualEngineerStep from '@/components/register/steps/IndividualEngineerStep';
+import EngineeringCompanyStep from '@/components/register/steps/EngineeringCompanyStep';
+import SupervisorTypeStep from '@/components/register/steps/SupervisorTypeStep';
+import IndependentSupervisorStep from '@/components/register/steps/IndependentSupervisorStep';
+import InspectionCompanyStep from '@/components/register/steps/InspectionCompanyStep';
+import SupplierInfoStep from '@/components/register/steps/SupplierInfoStep';
+import SupplierCategoriesStep from '@/components/register/steps/SupplierCategoriesStep';
+import SupplierCoverageStep from '@/components/register/steps/SupplierCoverageStep';
+import SupplierLocationStep from '@/components/register/steps/SupplierLocationStep';
+import SupplierPaymentStep from '@/components/register/steps/SupplierPaymentStep';
+import DocumentUploadStep from '@/components/register/steps/DocumentUploadStep';
+import ReviewSubmitStep from '@/components/register/steps/ReviewSubmitStep';
+import VerificationPendingStep from '@/components/register/steps/VerificationPendingStep';
 
-export default function Register() {
-  const register = useAuthStore((state) => state.register);
-  const loading = useAuthStore((state) => state.loading);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState("client");
-  const [error, setError] = useState("");
+export type UserRole = 'client' | 'engineer' | 'supervisor' | 'supplier';
 
-  const submit = async () => {
-    setError("");
-    try {
-      const cleanEmail = email.trim().toLowerCase();
-      await register(name.trim(), cleanEmail, password, role);
-      router.push({ pathname: "/(auth)/verify-email", params: { email: cleanEmail } });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+export interface RegistrationData {
+  basic: {
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+    country: string;
+    password?: string;
+    role: UserRole;
+  };
+  roleSpecific: any;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  documents: any[];
+  currentStep: number;
+}
+
+const STORAGE_KEY = '@inkingi_registration_data';
+
+const DEFAULT_DATA = (role: UserRole = 'client'): RegistrationData => ({
+  basic: { fullName: '', email: '', phoneNumber: '', country: 'Rwanda', role },
+  roleSpecific: {},
+  emailVerified: false,
+  phoneVerified: false,
+  documents: [],
+  currentStep: 0,
+});
+
+// Lazy AsyncStorage to avoid "native module is null" crash on first paint
+async function safeGetItem(key: string): Promise<string | null> {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    return await AsyncStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+async function safeSetItem(key: string, value: string): Promise<void> {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    await AsyncStorage.setItem(key, value);
+  } catch { /* silently ignore */ }
+}
+async function safeRemoveItem(key: string): Promise<void> {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    await AsyncStorage.removeItem(key);
+  } catch { /* silently ignore */ }
+}
+
+export default function RegisterFlow() {
+  const params = useLocalSearchParams<{ role?: string }>();
+
+  // Step -1 = role selection (fullscreen, no progress bar)
+  // Step 0+ = role-specific steps
+  const [roleSelected, setRoleSelected] = useState<boolean>(!!params.role);
+  const [role, setRole] = useState<UserRole>((params.role as UserRole) || 'client');
+  const [loading, setLoading] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+
+  const storeRegister = useAuthStore((s) => s.register);
+
+  const [data, setData] = useState<RegistrationData>(DEFAULT_DATA((params.role as UserRole) || 'client'));
+
+  // Load persisted progress
+  useEffect(() => {
+    (async () => {
+      const saved = await safeGetItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed: RegistrationData = JSON.parse(saved);
+          if (parsed.basic?.role) {
+            setRole(parsed.basic.role);
+            setRoleSelected(true);
+            setData(parsed);
+          }
+        } catch { /* corrupt data — start fresh */ }
+      }
+      setIsReady(true);
+    })();
+  }, []);
+
+  const persist = useCallback((updated: RegistrationData) => {
+    safeSetItem(STORAGE_KEY, JSON.stringify(updated));
+  }, []);
+
+  const handleUpdate = useCallback((updates: Partial<RegistrationData>) => {
+    setData((prev) => {
+      const next = { ...prev, ...updates };
+      persist(next);
+      return next;
+    });
+  }, [persist]);
+
+  // ─── Role selection ────────────────────────────────────────────────────────
+  const handleRoleSelect = (selectedRole: UserRole) => {
+    const fresh = DEFAULT_DATA(selectedRole);
+    setRole(selectedRole);
+    setData(fresh);
+    setRoleSelected(true);
+    persist(fresh);
+  };
+
+  // ─── Step navigation ───────────────────────────────────────────────────────
+  const steps = getSteps(role);
+  const currentStep = data.currentStep;
+
+  const handleNext = async () => {
+    if (currentStep === 0) {
+      // Create account after BasicInfoStep
+      setLoading(true);
+      try {
+        const { fullName, email, password } = data.basic;
+        if (password) await storeRegister(fullName, email, password, role);
+        handleUpdate({ currentStep: 1 });
+      } catch (err: any) {
+        alert(err?.response?.data?.message || err?.message || 'Registration failed. Email may already exist.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    handleUpdate({ currentStep: currentStep + 1 });
+  };
+
+  const handlePrev = () => {
+    if (currentStep > 0) {
+      handleUpdate({ currentStep: currentStep - 1 });
+    } else {
+      // Back to role selection
+      setRoleSelected(false);
+      setData(DEFAULT_DATA(role));
+      safeRemoveItem(STORAGE_KEY);
     }
   };
 
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      await api.patch(ENDPOINTS.AUTH.UPDATE_PROFILE, {
+        name: data.basic.fullName,
+        phoneNumber: data.basic.phoneNumber,
+        roleSpecific: data.roleSpecific,
+        documents: data.documents,
+        kycStatus: 'pending',
+      });
+      await safeRemoveItem(STORAGE_KEY);
+      handleUpdate({ currentStep: currentStep + 1 });
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Submission failed. Please retry.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Loading state ─────────────────────────────────────────────────────────
+  if (!isReady) {
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+        <Text style={styles.loaderText}>Loading…</Text>
+      </View>
+    );
+  }
+
+  // ─── Step 0: Role selection (no progress bar) ──────────────────────────────
+  if (!roleSelected) {
+    return <RoleSelectionStep onSelect={handleRoleSelect} />;
+  }
+
+  // ─── Registered steps ──────────────────────────────────────────────────────
+  const isFinal = currentStep === steps.length - 1;
+  const stepProps = { data, onUpdate: handleUpdate, onNext: handleNext, onPrev: handlePrev, onSubmit: handleSubmit, loading };
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.SURFACE }}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-          <View style={{ flex: 1, justifyContent: "center" }}>
-            <View
-              style={{
-                backgroundColor: COLORS.SURFACE,
-                borderRadius: 0,
-                flex: 1,
-                justifyContent: "center",
-                padding: 26,
-                shadowColor: "#064E3B",
-                shadowOpacity: 0,
-                shadowRadius: 24,
-              }}
-            >
-              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                <View
-                  style={{
-                    backgroundColor: COLORS.INK,
-                    borderBottomRightRadius: 18,
-                    borderTopRightRadius: 18,
-                    height: 28,
-                    width: 16,
-                  }}
-                />
-                <Ionicons name="person-add-outline" size={22} color={COLORS.INK} />
-              </View>
-
-              <View style={{ gap: 8, marginBottom: 20, marginTop: 42 }}>
-                <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 30, fontWeight: "900" }}>
-                  Create
-                  {"\n"}your account.
-                </Text>
-                <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13 }}>
-                  Already registered? /{" "}
-                  <Link href="/(auth)/login" asChild>
-                    <Text style={{ color: COLORS.INK, fontWeight: "900" }}>Login</Text>
-                  </Link>
-                </Text>
-              </View>
-
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-                {roles.map((item) => {
-                  const selected = role === item.value;
-                  return (
-                    <Pressable
-                      key={item.value}
-                      onPress={() => setRole(item.value)}
-                      style={{
-                        alignItems: "center",
-                        backgroundColor: selected ? COLORS.PRIMARY : COLORS.MUTED,
-                        borderRadius: 14,
-                        flexDirection: "row",
-                        gap: 6,
-                        paddingHorizontal: 10,
-                        paddingVertical: 9,
-                      }}
-                    >
-                      <Ionicons
-                        name={item.icon}
-                        size={15}
-                        color={selected ? COLORS.TEXT_WHITE : COLORS.TEXT_SECONDARY}
-                      />
-                      <Text
-                        style={{
-                          color: selected ? COLORS.TEXT_WHITE : COLORS.TEXT_SECONDARY,
-                          fontSize: 12,
-                          fontWeight: "900",
-                        }}
-                      >
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <View style={{ gap: 12 }}>
-                {[
-                  { value: name, setter: setName, placeholder: "Full name", icon: "person-outline" as const },
-                  { value: email, setter: setEmail, placeholder: "Email address", icon: "mail-outline" as const },
-                ].map((field) => (
-                  <View
-                    key={field.placeholder}
-                    style={{
-                      alignItems: "center",
-                      backgroundColor: COLORS.MUTED,
-                      borderRadius: 10,
-                      flexDirection: "row",
-                      gap: 10,
-                      paddingHorizontal: 14,
-                      paddingVertical: 14,
-                    }}
-                  >
-                    <Ionicons name={field.icon} size={18} color={COLORS.TEXT_LIGHT} />
-                    <TextInput
-                      autoCapitalize={field.placeholder.includes("Email") ? "none" : "words"}
-                      keyboardType={field.placeholder.includes("Email") ? "email-address" : "default"}
-                      onChangeText={field.setter}
-                      placeholder={field.placeholder}
-                      placeholderTextColor={COLORS.TEXT_LIGHT}
-                      style={{ color: COLORS.TEXT_PRIMARY, flex: 1 }}
-                      value={field.value}
-                    />
-                  </View>
-                ))}
-                <View
-                  style={{
-                    alignItems: "center",
-                    backgroundColor: "#FAD08A",
-                    borderRadius: 10,
-                    flexDirection: "row",
-                    gap: 10,
-                    paddingHorizontal: 14,
-                    paddingVertical: 14,
-                  }}
-                >
-                  <Ionicons name="lock-closed-outline" size={18} color={COLORS.INK} />
-                  <TextInput
-                    onChangeText={setPassword}
-                    placeholder="Password"
-                    placeholderTextColor={COLORS.STEEL}
-                    secureTextEntry
-                    style={{ color: COLORS.INK, flex: 1, fontWeight: "700" }}
-                    value={password}
-                  />
-                </View>
-              </View>
-
-              {error ? (
-                <Text style={{ color: COLORS.ERROR, fontSize: 12, fontWeight: "700", marginTop: 10 }}>
-                  {error}
-                </Text>
-              ) : null}
-
-              <Pressable
-                disabled={loading}
-                onPress={submit}
-                style={{
-                  alignItems: "center",
-                  backgroundColor: "#8BCDC1",
-                  borderRadius: 10,
-                  marginTop: 24,
-                  opacity: loading ? 0.7 : 1,
-                  paddingVertical: 16,
-                }}
-              >
-                <Text style={{ color: COLORS.INK, fontWeight: "900" }}>
-                  {loading ? "Creating..." : "Create Account"}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </ScrollView>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
+        {!isFinal && <ProgressStepper currentStep={currentStep} steps={steps} />}
+        <View style={styles.flex}>{renderStep(role, currentStep, stepProps)}</View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getSteps(role: UserRole): string[] {
+  const base = ['Credentials', 'Verify Email', 'Verify Phone'];
+  switch (role) {
+    case 'client':    return [...base, 'KYC Docs', 'Review', 'Done'];
+    case 'engineer':  return [...base, 'Category', 'Profile', 'Documents', 'Review', 'Done'];
+    case 'supervisor':return [...base, 'Category', 'License', 'Documents', 'Review', 'Done'];
+    case 'supplier':  return [...base, 'Company', 'Catalog', 'Coverage', 'Location', 'Payments', 'Documents', 'Review', 'Done'];
+    default:          return base;
+  }
+}
+
+function renderStep(role: UserRole, step: number, props: any) {
+  if (role === 'client') {
+    const map: Record<number, React.ReactElement | null> = {
+      0: <BasicInfoStep {...props} />,
+      1: <EmailVerificationStep {...props} />,
+      // 2: <PhoneVerificationStep {...props} />,
+      3: <ClientKYSStep {...props} />,
+      4: <ReviewSubmitStep {...props} />,
+      5: <VerificationPendingStep />,
+    };
+    return map[step] ?? null;
+  }
+  if (role === 'engineer') {
+    const isCompany = props.data.roleSpecific?.engineerType === 'company';
+    const map: Record<number, React.ReactElement | null> = {
+      0: <BasicInfoStep {...props} />,
+      1: <EmailVerificationStep {...props} />,
+      // 2: <PhoneVerificationStep {...props} />,
+      3: <EngineerTypeStep {...props} />,
+      4: isCompany ? <EngineeringCompanyStep {...props} /> : <IndividualEngineerStep {...props} />,
+      5: <DocumentUploadStep {...props} />,
+      6: <ReviewSubmitStep {...props} />,
+      7: <VerificationPendingStep />,
+    };
+    return map[step] ?? null;
+  }
+  if (role === 'supervisor') {
+    const isCompany = props.data.roleSpecific?.supervisorType === 'company';
+    const map: Record<number, React.ReactElement | null> = {
+      0: <BasicInfoStep {...props} />,
+      1: <EmailVerificationStep {...props} />,
+      // 2: <PhoneVerificationStep {...props} />,
+      3: <SupervisorTypeStep {...props} />,
+      4: isCompany ? <InspectionCompanyStep {...props} /> : <IndependentSupervisorStep {...props} />,
+      5: <DocumentUploadStep {...props} />,
+      6: <ReviewSubmitStep {...props} />,
+      7: <VerificationPendingStep />,
+    };
+    return map[step] ?? null;
+  }
+  if (role === 'supplier') {
+    const map: Record<number, React.ReactElement | null> = {
+      0: <BasicInfoStep {...props} />,
+      1: <EmailVerificationStep {...props} />,
+      // 2: <PhoneVerificationStep {...props} />,
+      3: <SupplierInfoStep {...props} />,
+      4: <SupplierCategoriesStep {...props} />,
+      5: <SupplierCoverageStep {...props} />,
+      6: <SupplierLocationStep {...props} />,
+      7: <SupplierPaymentStep {...props} />,
+      8: <DocumentUploadStep {...props} />,
+      9: <ReviewSubmitStep {...props} />,
+      10: <VerificationPendingStep />,
+    };
+    return map[step] ?? null;
+  }
+  return null;
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.BACKGROUND },
+  flex: { flex: 1 },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.BACKGROUND },
+  loaderText: { marginTop: 12, fontSize: 14, color: COLORS.TEXT_SECONDARY },
+});

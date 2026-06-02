@@ -53,6 +53,11 @@ export const getRoleHome = (role?: string | null) => {
   return "/(client)";
 };
 
+export const isValidRwandanPhone = (phone: string): boolean => {
+  const cleanPhone = phone.trim();
+  return /^\+2507[2389]\d{7}$/.test(cleanPhone);
+};
+
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
