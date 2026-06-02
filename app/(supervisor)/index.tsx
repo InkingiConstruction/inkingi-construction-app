@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import {
+  SupervisorAssignment,
   SupervisorInspection,
   SupervisorProgressPhoto,
   SupervisorProject,
@@ -20,12 +21,30 @@ type NotificationItem = {
 
 export default function SupervisorIndex() {
   const user = useAuthStore((state) => state.user);
+  const queryClient = useQueryClient();
   const projectsQuery = useQuery({
     queryKey: ["supervisor-projects"],
     queryFn: async () => {
       const response = await api.get<SupervisorProject[]>(ENDPOINTS.PROJECTS.LIST);
-      return response.data;
+      return response.data.filter((project) =>
+        (project.projectMembers || []).some(
+          (member) =>
+            member.role?.toLowerCase() === "supervisor" &&
+            member.status?.toLowerCase() === "accepted",
+        ),
+      );
     },
+    refetchOnMount: "always",
+  });
+  const invitationsQuery = useQuery({
+    queryKey: ["supervisor-project-invitations"],
+    queryFn: async () => {
+      const response = await api.get<SupervisorAssignment[]>(ENDPOINTS.PROJECT_MEMBERS.LIST, {
+        params: { status: "pending" },
+      });
+      return response.data.filter((assignment) => assignment.role?.toLowerCase() === "supervisor");
+    },
+    refetchOnMount: "always",
   });
   const inspectionsQuery = useQuery({
     queryKey: ["supervisor-inspections"],
@@ -33,6 +52,31 @@ export default function SupervisorIndex() {
       const response = await api.get<SupervisorInspection[]>(ENDPOINTS.INSPECTIONS.LIST);
       return response.data;
     },
+  });
+
+  const respondMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "accept" | "reject" }) => {
+      const endpoint =
+        action === "accept"
+          ? ENDPOINTS.PROJECT_MEMBERS.ACCEPT(id)
+          : ENDPOINTS.PROJECT_MEMBERS.REJECT(id);
+      return api.post(endpoint);
+    },
+    onSuccess: async (_response, variables) => {
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["supervisor-project-invitations"] }),
+        queryClient.refetchQueries({ queryKey: ["supervisor-projects"] }),
+        queryClient.invalidateQueries({ queryKey: ["supervisor-inspections"] }),
+        queryClient.invalidateQueries({ queryKey: ["supervisor-progress"] }),
+      ]);
+      Alert.alert(
+        variables.action === "accept" ? "Project accepted" : "Project declined",
+        variables.action === "accept"
+          ? "The project is now available in your supervisor workspace."
+          : "The invitation has been declined.",
+      );
+    },
+    onError: (error) => Alert.alert("Action failed", error instanceof Error ? error.message : "Try again."),
   });
   const progressQuery = useQuery({
     queryKey: ["supervisor-progress"],
@@ -50,6 +94,7 @@ export default function SupervisorIndex() {
   });
 
   const projects = projectsQuery.data || [];
+  const invitations = invitationsQuery.data || [];
   const inspections = inspectionsQuery.data || [];
   const progress = progressQuery.data || [];
   const unreadAlerts = (notificationsQuery.data || []).filter((item) => item.status !== "read").length;
@@ -59,7 +104,11 @@ export default function SupervisorIndex() {
       .map((milestone) => ({ ...milestone, project })),
   );
   const latestProgress = progress.slice(0, 3);
-  const loading = projectsQuery.isLoading || inspectionsQuery.isLoading || progressQuery.isLoading;
+  const loading =
+    projectsQuery.isLoading ||
+    invitationsQuery.isLoading ||
+    inspectionsQuery.isLoading ||
+    progressQuery.isLoading;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
@@ -103,6 +152,15 @@ export default function SupervisorIndex() {
           <ActivityIndicator color={COLORS.PRIMARY} style={{ marginTop: 80 }} />
         ) : (
           <View style={{ gap: 16 }}>
+            {invitations[0] ? (
+              <InvitationPanel
+                assignment={invitations[0]}
+                loading={respondMutation.isPending}
+                onAccept={() => respondMutation.mutate({ id: invitations[0].id, action: "accept" })}
+                onReject={() => respondMutation.mutate({ id: invitations[0].id, action: "reject" })}
+              />
+            ) : null}
+
             <View
               style={{
                 backgroundColor: COLORS.INK,
@@ -170,7 +228,7 @@ export default function SupervisorIndex() {
             </View>
             <View style={{ flexDirection: "row", gap: 10 }}>
               <Metric title="Reports" value={inspections.length} icon="document-text-outline" />
-              <Metric title="Uploads" value={progress.length} icon="images-outline" />
+              <Metric title="Invites" value={invitations.length} icon="mail-unread-outline" />
             </View>
 
             <Section title="Quick actions" action="Projects" onPress={() => router.push("/(supervisor)/projects")}>
@@ -235,6 +293,86 @@ export default function SupervisorIndex() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function InvitationPanel({
+  assignment,
+  loading,
+  onAccept,
+  onReject,
+}: {
+  assignment: SupervisorAssignment;
+  loading: boolean;
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <View
+      style={{
+        backgroundColor: COLORS.SURFACE,
+        borderColor: COLORS.PRIMARY,
+        borderRadius: 10,
+        borderWidth: 1,
+        padding: 16,
+      }}
+    >
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <View
+          style={{
+            alignItems: "center",
+            backgroundColor: COLORS.PRIMARY_LIGHT,
+            borderRadius: 10,
+            height: 44,
+            justifyContent: "center",
+            width: 44,
+          }}
+        >
+          <Ionicons name="mail-unread-outline" size={22} color={COLORS.PRIMARY_DARK} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>
+            PROJECT INVITATION
+          </Text>
+          <Text numberOfLines={1} style={{ color: COLORS.TEXT_PRIMARY, fontSize: 17, fontWeight: "900", marginTop: 4 }}>
+            {assignment.project?.name || "New project assignment"}
+          </Text>
+          <Text numberOfLines={2} style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
+            {assignment.project?.address || assignment.project?.description || "Client is waiting for your supervision response."}
+          </Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+        <Pressable
+          disabled={loading}
+          onPress={onReject}
+          style={{
+            alignItems: "center",
+            backgroundColor: COLORS.MUTED,
+            borderRadius: 8,
+            flex: 1,
+            paddingVertical: 12,
+          }}
+        >
+          <Text style={{ color: COLORS.ERROR, fontWeight: "900" }}>Reject</Text>
+        </Pressable>
+        <Pressable
+          disabled={loading}
+          onPress={onAccept}
+          style={{
+            alignItems: "center",
+            backgroundColor: COLORS.PRIMARY,
+            borderRadius: 8,
+            flex: 1,
+            paddingVertical: 12,
+          }}
+        >
+          <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>
+            {loading ? "Saving..." : "Accept"}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 

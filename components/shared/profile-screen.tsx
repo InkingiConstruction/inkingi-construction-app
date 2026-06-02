@@ -61,6 +61,11 @@ export function ProfileScreen() {
     }
   };
 
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/(auth)/login");
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.SURFACE }}>
       <KeyboardAvoidingView
@@ -219,7 +224,7 @@ export function ProfileScreen() {
 
           <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between" }}>
             <Pressable
-              onPress={logout}
+              onPress={handleLogout}
               style={{ alignItems: "center", flexDirection: "row", gap: 8, paddingVertical: 12 }}
             >
               <Ionicons name="log-out-outline" size={19} color={COLORS.ERROR} />

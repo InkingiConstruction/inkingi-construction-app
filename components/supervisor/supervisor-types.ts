@@ -25,6 +25,8 @@ export type SupervisorAssignment = {
   role: string;
   status: string;
   invitedAt?: string;
+  acceptedAt?: string | null;
+  removedAt?: string | null;
   project?: SupervisorProject;
 };
 
@@ -61,6 +63,9 @@ export type SupervisorProgressPhoto = {
   cloudinaryUrl: string;
   caption?: string | null;
   isVideo: boolean;
+  reviewStatus?: "pending" | "approved" | "rejected";
+  supervisorComment?: string | null;
+  reviewedAt?: string | null;
   createdAt: string;
   project?: SupervisorProject;
   milestone?: SupervisorMilestone | null;

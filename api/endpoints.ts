@@ -39,6 +39,11 @@ export const ENDPOINTS = {
     LIST: "/milestones",
     DETAIL: (id: string) => `/milestones/${id}`,
   },
+  BOQ_ITEMS: {
+    LIST: "/boq-items",
+    CREATE: "/boq-items",
+    DETAIL: (id: string) => `/boq-items/${id}`,
+  },
   INSPECTIONS: {
     LIST: "/inspections",
     CREATE: "/inspections",
@@ -46,10 +51,12 @@ export const ENDPOINTS = {
   },
   PROGRESS_PHOTOS: {
     LIST: "/progress-photos",
+    CREATE: "/progress-photos",
     DETAIL: (id: string) => `/progress-photos/${id}`,
   },
   RFQS: {
     LIST: "/rfqs",
+    CREATE: "/rfqs",
     DETAIL: (id: string) => `/rfqs/${id}`,
   },
   QUOTES: {

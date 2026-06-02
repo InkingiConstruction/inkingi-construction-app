@@ -62,6 +62,10 @@ export type ClientProgressPhoto = {
   milestoneId?: string | null;
   cloudinaryUrl: string;
   caption?: string | null;
+  isVideo?: boolean;
+  reviewStatus?: "pending" | "approved" | "rejected";
+  supervisorComment?: string | null;
+  reviewedAt?: string | null;
   createdAt: string;
   project?: ClientProject;
   milestone?: ClientMilestone | null;

@@ -15,7 +15,13 @@ export default function SupervisorProjects() {
     queryKey: ["supervisor-projects"],
     queryFn: async () => {
       const response = await api.get<SupervisorProject[]>(ENDPOINTS.PROJECTS.LIST);
-      return response.data;
+      return response.data.filter((project) =>
+        (project.projectMembers || []).some(
+          (member) =>
+            member.role?.toLowerCase() === "supervisor" &&
+            member.status?.toLowerCase() === "accepted",
+        ),
+      );
     },
     refetchOnMount: "always",
   });
@@ -25,7 +31,7 @@ export default function SupervisorProjects() {
       const response = await api.get<SupervisorAssignment[]>(ENDPOINTS.PROJECT_MEMBERS.LIST, {
         params: { status: "pending" },
       });
-      return response.data.filter((assignment) => assignment.role === "supervisor");
+      return response.data.filter((assignment) => assignment.role?.toLowerCase() === "supervisor");
     },
     refetchOnMount: "always",
   });
@@ -40,8 +46,10 @@ export default function SupervisorProjects() {
     },
     onSuccess: async (_data, variables) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["supervisor-project-invitations"] }),
-        queryClient.invalidateQueries({ queryKey: ["supervisor-projects"] }),
+        queryClient.refetchQueries({ queryKey: ["supervisor-project-invitations"] }),
+        queryClient.refetchQueries({ queryKey: ["supervisor-projects"] }),
+        queryClient.invalidateQueries({ queryKey: ["supervisor-inspections"] }),
+        queryClient.invalidateQueries({ queryKey: ["supervisor-progress"] }),
       ]);
       Alert.alert(
         variables.action === "accept" ? "Project accepted" : "Project declined",
@@ -164,7 +172,9 @@ function InvitationCard({
             paddingVertical: 12,
           }}
         >
-          <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>Accept</Text>
+          <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>
+            {loading ? "Saving..." : "Accept"}
+          </Text>
         </Pressable>
       </View>
     </View>

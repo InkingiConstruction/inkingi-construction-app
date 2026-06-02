@@ -95,15 +95,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
-    set({ user: null, isAuthenticated: false });
+    const logoutRequest = api.post(ENDPOINTS.AUTH.LOGOUT).catch(() => undefined);
 
-    try {
-      await api.post(ENDPOINTS.AUTH.LOGOUT);
-    } catch {
-      set({ user: null, isAuthenticated: false });
-    } finally {
-      await clearAuthToken();
-    }
+    await clearAuthToken();
+    set({ user: null, isAuthenticated: false, loading: false });
+    void logoutRequest;
   },
 
   register: async (name, email, password, role = "client") => {
