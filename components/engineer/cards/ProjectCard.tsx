@@ -13,7 +13,7 @@ import { router } from "expo-router";
   router.push({
     pathname: "/(engineer)/project/[id]",
     params: { id },
-  });
+  } as never);
 };
 export default function ProjectCard({
     

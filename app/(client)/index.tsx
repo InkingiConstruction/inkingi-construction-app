@@ -174,7 +174,7 @@ export default function ClientIndex() {
               </Pressable>
 
               <Pressable
-                onPress={() => router.push("/(client)/milestones")}
+                onPress={() => router.push("/(client)/milestones" as never)}
                 style={{
                   backgroundColor: COLORS.SURFACE,
                   borderColor: COLORS.BORDER_LIGHT,
@@ -198,7 +198,7 @@ export default function ClientIndex() {
               </Pressable>
 
               <Pressable
-                onPress={() => router.push("/(client)/disputes")}
+                onPress={() => router.push("/(client)/disputes" as never)}
                 style={{
                   backgroundColor: COLORS.SURFACE,
                   borderColor: COLORS.BORDER_LIGHT,

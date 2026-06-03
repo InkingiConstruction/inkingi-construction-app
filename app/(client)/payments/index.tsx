@@ -71,7 +71,7 @@ export default function ClientPayments() {
       (async () => {
         const ready = await hasPasscode();
         if (!ready) {
-          router.push('/(client)/payments/passcode-setup');
+          router.push('/(client)/payments/passcode-setup' as never);
           return;
         }
         if (projects.length > 0) await loadFunds(projects);
@@ -120,7 +120,7 @@ export default function ClientPayments() {
           budget: String(project.budget ?? project.totalBudget ?? 0),
           currentBalance: String(funds[project.id]?.balance ?? 0),
         },
-      });
+      } as never);
     });
   };
 
@@ -134,7 +134,7 @@ export default function ClientPayments() {
           vaultId: project.id,
           balance: String(fund.balance),
         },
-      });
+      } as never);
     });
   };
 
@@ -237,7 +237,7 @@ export default function ClientPayments() {
         {/* ── Quick Actions ── */}
         <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, marginBottom: 20 }}>
           <Pressable
-            onPress={() => router.push('/(client)/payments/passcode-setup')}
+            onPress={() => router.push('/(client)/payments/passcode-setup' as never)}
             style={({ pressed }) => ({
               flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
               gap: 8, paddingVertical: 14, borderRadius: 14,

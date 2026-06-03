@@ -198,7 +198,7 @@ export default function MilestonesScreen() {
             router.push({
               pathname: "/(client)/disputes",
               params: { disputeId }
-            });
+            } as never);
           }
         },
         {

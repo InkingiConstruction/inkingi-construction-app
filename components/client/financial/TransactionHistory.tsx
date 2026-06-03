@@ -116,7 +116,7 @@ export default function TransactionHistory({
   };
 
   const handleTransactionPress = (transaction: Transaction) => {
-    router.push(`/(client)/payments/transaction-detail?id=${transaction.id}`);
+    router.push(`/(client)/payments/transaction-detail?id=${transaction.id}` as never);
   };
 
   if (isLoading && transactions.length === 0) {

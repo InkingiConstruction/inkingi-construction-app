@@ -122,7 +122,7 @@ export default function DisputesScreen() {
               No active disputes. Disputes are initiated when there&apos;s a conflict on milestone payment or building quality.
             </Text>
             <Pressable 
-              onPress={() => router.push("/(client)/milestones")}
+              onPress={() => router.push("/(client)/milestones" as never)}
               style={{
                 marginTop: 20,
                 backgroundColor: COLORS.PRIMARY,

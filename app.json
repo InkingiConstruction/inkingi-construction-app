@@ -71,7 +71,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow InkingiPro to access your location to mark project sites."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

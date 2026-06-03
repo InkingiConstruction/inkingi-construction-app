@@ -132,7 +132,7 @@ export default function ClientProjects() {
                       <Mini label="Budget" value={`${Number(project.budget || 0).toLocaleString()} ${project.currency}`} />
                       <Pressable 
                         style={{ flex: 1 }} 
-                        onPress={() => router.push({ pathname: "/(client)/milestones", params: { projectId: project.id } })}
+                        onPress={() => router.push({ pathname: "/(client)/milestones", params: { projectId: project.id } } as never)}
                       >
                         <Mini label="Milestones" value={`${project.milestones?.length || 4}`} />
                       </Pressable>
@@ -184,7 +184,7 @@ export default function ClientProjects() {
                     <Action 
                       icon="flag-outline" 
                       label="Milestones" 
-                      onPress={() => router.push({ pathname: "/(client)/milestones", params: { projectId: project.id } })} 
+                      onPress={() => router.push({ pathname: "/(client)/milestones", params: { projectId: project.id } } as never)} 
                     />
                     <Action icon="trending-up-outline" label="Progress" onPress={() => router.push("/(client)/progress")} />
                     <Action icon="card-outline" label="Pay" onPress={() => router.push("/(client)/payments")} />
