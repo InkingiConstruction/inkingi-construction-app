@@ -7,20 +7,14 @@ import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { EngineerProject } from "@/components/engineer/engineer-types";
+import { isAcceptedEngineerProject } from "@/components/engineer/engineer-utils";
 
 export default function EngineerProjects() {
   const projectsQuery = useQuery({
     queryKey: ["engineer-projects"],
     queryFn: async () => {
       const response = await api.get<EngineerProject[]>(ENDPOINTS.PROJECTS.LIST);
-      return response.data.filter((project) =>
-        project.engineerId ||
-        (project.projectMembers || []).some(
-          (member) =>
-            member.role?.toLowerCase() === "engineer" &&
-            member.status?.toLowerCase() === "accepted",
-        ),
-      );
+      return response.data.filter(isAcceptedEngineerProject);
     },
     refetchOnMount: "always",
   });

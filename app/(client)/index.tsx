@@ -12,10 +12,8 @@ import {
   ClientProgressPhoto,
   ClientProject,
 } from "@/components/client/client-types";
-import { useState, useEffect } from "react";
 import { PieChart, BarChart } from "react-native-gifted-charts";
-import { useSampleFlowStore } from "@/store/sampleFlow.store";
-import { getAllFunds, formatRWF } from "@/utils/projectFunds";
+import { formatRWF } from "@/utils/projectFunds";
 import { COLORS } from "@/constants/colors";
 
 export default function ClientIndex() {
@@ -36,32 +34,23 @@ export default function ClientIndex() {
     queryKey: ["client-escrow-accounts"],
     queryFn: async () => (await api.get<ClientEscrowAccount[]>(ENDPOINTS.ESCROW_ACCOUNTS.LIST)).data,
   });
+  const disputesQuery = useQuery({
+    queryKey: ["client-disputes"],
+    queryFn: async () => (await api.get<any[]>(ENDPOINTS.DISPUTES.LIST)).data,
+  });
 
   const projects = projectsQuery.data || [];
   const milestones = milestonesQuery.data || [];
   const progress = progressQuery.data || [];
   const escrows = escrowQuery.data || [];
+  const disputes = disputesQuery.data || [];
   const activeProjects = projects.filter((project) => !["completed", "cancelled"].includes(project.status));
   const awaitingPayments = milestones.filter((milestone) => milestone.status === "awaiting_client_payment");
   const withoutEngineer = projects.filter((project) => !project.engineerId);
   const loading = projectsQuery.isLoading || milestonesQuery.isLoading;
 
-  const { milestones: storeMilestones, disputes } = useSampleFlowStore();
-  const [localEscrows, setLocalEscrows] = useState<any[]>([]);
-
-  useEffect(() => {
-    getAllFunds().then(funds => {
-      setLocalEscrows(Object.values(funds));
-    });
-  }, [storeMilestones]);
-
-  const totalEscrow = localEscrows.length > 0 
-    ? localEscrows.reduce((sum, escrow) => sum + Number(escrow.balance || 0), 0)
-    : escrows.reduce((sum, escrow) => sum + Number(escrow.balance || 0), 0);
-
-  const totalBudget = localEscrows.length > 0
-    ? localEscrows.reduce((sum, escrow) => sum + Number(escrow.budget || 0), 0)
-    : projects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
+  const totalEscrow = escrows.reduce((sum, escrow) => sum + Number(escrow.balance || 0), 0);
+  const totalBudget = projects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
 
   const nextProject = withoutEngineer[0] || activeProjects[0] || projects[0];
 
@@ -297,7 +286,7 @@ export default function ClientIndex() {
                 <BarChart
                   data={[
                     { value: projects.length, label: "Projects", frontColor: COLORS.PRIMARY },
-                    { value: storeMilestones.length, label: "Milestones", frontColor: "#3B82F6" },
+                    { value: milestones.length, label: "Milestones", frontColor: "#3B82F6" },
                     { value: disputes.length, label: "Disputes", frontColor: COLORS.ERROR }
                   ]}
                   barWidth={35}

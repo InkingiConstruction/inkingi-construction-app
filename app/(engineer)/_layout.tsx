@@ -8,16 +8,16 @@ export default function RootLayout() {
         { name: "projects", title: "Projects", icon: "business-outline" },
         { name: "progress", title: "Progress", icon: "camera-outline" },
         { name: "messages", title: "Chat", icon: "chatbubbles-outline" },
+        { name: "settings", title: "Settings", icon: "settings-outline" },
       ]}
       hiddenRoutes={[
         "assignments",
-        // "milestones",
+        "milestones",
         "boq",
         "rfqs",
         "notifications",
         "profile",
         "profile-edit",
-        "settings",
         "project/[id]",
       ]}
     />

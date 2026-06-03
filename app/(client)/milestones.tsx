@@ -15,28 +15,77 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { ClientTopBar } from "@/components/client/client-top-bar";
-import { useSampleFlowStore, MockMilestone } from "@/store/sampleFlow.store";
-import { getProjectFund, withdrawFunds, formatRWF } from "@/utils/projectFunds";
+import { formatRWF } from "@/utils/projectFunds";
 import { verifyPasscode } from "@/utils/SecurityUtils";
 
 const { width } = Dimensions.get("window");
 
+type ClientMilestoneView = {
+  id: string;
+  projectId: string;
+  name: string;
+  description?: string | null;
+  status: string;
+  budgetPercentage: number;
+  budgetAmount: number;
+  checklist: { id: string; task: string; completed: boolean }[];
+  completionPhotos: string[];
+  revisionNotes?: string | null;
+};
+
+const toDisputeCategory = (value: "Quality" | "Timeline" | "Cost" | "Other") =>
+  value.toLowerCase();
+
+const toMilestoneView = (milestone: any, project: any): ClientMilestoneView => {
+  const budgetPercentage = Number(milestone.budgetPercentage || 0);
+  const projectBudget = Number(project?.budget || project?.totalBudget || 0);
+  const status = milestone.status === "paid" ? "completed" : milestone.status;
+  const progressPhotos = Array.isArray(milestone.progressPhotos)
+    ? milestone.progressPhotos
+    : [];
+
+  return {
+    id: milestone.id,
+    projectId: milestone.projectId,
+    name: milestone.name,
+    description: milestone.description || milestone.acceptanceCriteria || "No description provided.",
+    status,
+    budgetPercentage,
+    budgetAmount: Math.round((projectBudget * budgetPercentage) / 100),
+    checklist: [
+      {
+        id: `${milestone.id}-scope`,
+        task: milestone.acceptanceCriteria || milestone.description || "Milestone scope submitted",
+        completed: ["pending_supervisor", "awaiting_client_payment", "paid", "completed"].includes(milestone.status),
+      },
+      {
+        id: `${milestone.id}-review`,
+        task: "Supervisor review completed",
+        completed: ["awaiting_client_payment", "paid", "completed"].includes(milestone.status),
+      },
+      {
+        id: `${milestone.id}-payment`,
+        task: "Client payment released",
+        completed: ["paid", "completed"].includes(milestone.status),
+      },
+    ],
+    completionPhotos: progressPhotos
+      .map((photo: any) => photo.cloudinaryUrl)
+      .filter(Boolean),
+    revisionNotes: milestone.revisionNotes || milestone.clientNotes || null,
+  };
+};
+
 export default function MilestonesScreen() {
+  const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ projectId?: string }>();
   const [projectId, setProjectId] = useState(params.projectId || "");
   const [viewMode, setViewMode] = useState<"timeline" | "board">("timeline");
-  
-  // Store actions and data
-  const { 
-    milestones: storeMilestones, 
-    updateMilestoneStatus, 
-    createDispute 
-  } = useSampleFlowStore();
 
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [walletBudget, setWalletBudget] = useState<number>(0);
@@ -50,24 +99,46 @@ export default function MilestonesScreen() {
   const projects = projectsQuery.data || [];
   const activeProject = projects.find(p => p.id === projectId) || projects[0];
 
-  // Load local wallet balance
+  const milestonesQuery = useQuery({
+    queryKey: ["client-milestones", projectId],
+    enabled: Boolean(projectId),
+    queryFn: async () =>
+      (await api.get<any[]>(ENDPOINTS.MILESTONES.LIST, { params: { projectId } })).data,
+  });
+
+  const escrowQuery = useQuery({
+    queryKey: ["client-escrow", projectId],
+    enabled: Boolean(projectId),
+    queryFn: async () =>
+      (await api.get<any[]>(ENDPOINTS.ESCROW_ACCOUNTS.LIST, { params: { projectId } })).data,
+  });
+
+  const activeEscrow = escrowQuery.data?.[0];
+
+  useEffect(() => {
+    if (activeProject && !projectId) {
+      setProjectId(activeProject.id);
+    }
+  }, [activeProject, projectId]);
+
   useEffect(() => {
     if (activeProject) {
-      setProjectId(activeProject.id);
-      getProjectFund(activeProject.id).then(fund => {
-        if (fund) {
-          setWalletBalance(fund.balance);
-          setWalletBudget(fund.budget);
-        }
-      });
+      setWalletBudget(Number(activeProject.budget || activeProject.totalBudget || 0));
     }
-  }, [activeProject, storeMilestones]);
+    if (activeEscrow) {
+      setWalletBalance(Number(activeEscrow.balance || 0));
+    } else {
+      setWalletBalance(0);
+    }
+  }, [activeEscrow, activeProject]);
 
   // Filter milestones for selected project
-  const projectMilestones = storeMilestones.filter(m => m.projectId === projectId);
+  const projectMilestones = (milestonesQuery.data || []).map((milestone) =>
+    toMilestoneView(milestone, activeProject),
+  );
 
   // Modal & Flow control states
-  const [selectedMilestone, setSelectedMilestone] = useState<MockMilestone | null>(null);
+  const [selectedMilestone, setSelectedMilestone] = useState<ClientMilestoneView | null>(null);
   const [modalMode, setModalMode] = useState<"view" | "passcode" | "revision" | "dispute">("view");
   
   // Passcode state
@@ -84,7 +155,64 @@ export default function MilestonesScreen() {
   const [disputeEvidence, setDisputeEvidence] = useState<string[]>([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
 
-  const handleOpenMilestone = (ms: MockMilestone) => {
+  const releasePaymentMutation = useMutation({
+    mutationFn: async (milestone: ClientMilestoneView) => {
+      if (!activeEscrow?.id) {
+        throw new Error("No escrow account found for this project. Please fund the project first.");
+      }
+
+      return api.post(ENDPOINTS.TRANSACTIONS.CREATE, {
+        escrowAccountId: activeEscrow.id,
+        milestoneId: milestone.id,
+        type: "release",
+        method: "bank_transfer",
+        amount: milestone.budgetAmount,
+        status: "completed",
+        reference: `CLIENT-RELEASE-${Date.now()}`,
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["client-milestones"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-escrow"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-transactions"] }),
+      ]);
+    },
+  });
+
+  const revisionMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedMilestone) throw new Error("Milestone is required");
+      return api.put(ENDPOINTS.MILESTONES.UPDATE(selectedMilestone.id), {
+        status: "revision_required",
+        revisionNotes,
+      });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["client-milestones"] });
+    },
+  });
+
+  const disputeMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedMilestone) throw new Error("Milestone is required");
+      return api.post<{ dispute: { id: string } }>(ENDPOINTS.DISPUTES.CREATE, {
+        projectId,
+        milestoneId: selectedMilestone.id,
+        category: toDisputeCategory(disputeCategory),
+        description: disputeDesc.trim(),
+        amountInDispute: selectedMilestone.budgetAmount,
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["client-disputes"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-milestones"] }),
+      ]);
+    },
+  });
+
+  const handleOpenMilestone = (ms: ClientMilestoneView) => {
     setSelectedMilestone(ms);
     setModalMode("view");
     setPasscode("");
@@ -106,22 +234,7 @@ export default function MilestonesScreen() {
     try {
       const res = await verifyPasscode(passcode);
       if (res.success) {
-        // Deduct from local project funds
-        try {
-          await withdrawFunds(
-            projectId, 
-            selectedMilestone.budgetAmount, 
-            "escrow_release", 
-            `Milestone release: ${selectedMilestone.name}`
-          );
-        } catch (e: any) {
-          Alert.alert("Funding Error", "You do not have enough funds in your escrow wallet to release this payment. Please top up your wallet.");
-          setModalMode("view");
-          return;
-        }
-
-        // Update status in Zustand store
-        updateMilestoneStatus(selectedMilestone.id, "completed");
+        await releasePaymentMutation.mutateAsync(selectedMilestone);
         
         Alert.alert("Success", "Payment released from escrow successfully! Engineer has been notified.");
         setSelectedMilestone(null);
@@ -139,21 +252,23 @@ export default function MilestonesScreen() {
   };
 
   // 2. Request Revision
-  const handleRevisionSubmit = () => {
+  const handleRevisionSubmit = async () => {
     if (!selectedMilestone) return;
     if (!revisionNotes.trim()) {
       Alert.alert("Required", "Please describe what details need revision.");
       return;
     }
 
-    updateMilestoneStatus(selectedMilestone.id, "revision_required", { revisionNotes });
-    
-    // Mock push notification / Nodemailer
-    Alert.alert(
-      "Revision Requested",
-      `Your notes have been sent to the engineer.\n\nSubject: Changes required: ${selectedMilestone.name}\nWe'll notify you once they resubmit.`
-    );
-    setSelectedMilestone(null);
+    try {
+      await revisionMutation.mutateAsync();
+      Alert.alert(
+        "Revision Requested",
+        `Your notes have been sent to the engineer.\n\nSubject: Changes required: ${selectedMilestone.name}\nWe'll notify you once they resubmit.`
+      );
+      setSelectedMilestone(null);
+    } catch (error) {
+      Alert.alert("Revision Failed", error instanceof Error ? error.message : "Please try again.");
+    }
   };
 
   // 3. Initiate Dispute
@@ -169,44 +284,40 @@ export default function MilestonesScreen() {
     }, 1200);
   };
 
-  const handleDisputeSubmit = () => {
+  const handleDisputeSubmit = async () => {
     if (!selectedMilestone) return;
     if (disputeDesc.trim().length < 50) {
       Alert.alert("Minimum Length", "Please write at least 50 characters to explain the issue clearly for the mediator.");
       return;
     }
 
-    const disputeId = createDispute({
-      milestoneId: selectedMilestone.id,
-      projectId,
-      projectName: activeProject?.name || "Project",
-      milestoneName: selectedMilestone.name,
-      category: disputeCategory,
-      description: disputeDesc,
-      evidence: disputeEvidence,
-      lockedAmount: selectedMilestone.budgetAmount
-    });
+    try {
+      const response = await disputeMutation.mutateAsync();
+      const disputeId = response.data.dispute.id;
 
-    Alert.alert(
-      "Dispute Submitted",
-      `Dispute ID: ${disputeId}\nFunds are locked. We have notified:\n- The Engineer\n- The Supervisor\n- IER Arbitrator Panel`,
-      [
-        {
-          text: "Track Dispute",
-          onPress: () => {
-            setSelectedMilestone(null);
-            router.push({
-              pathname: "/(client)/disputes",
-              params: { disputeId }
-            } as never);
+      Alert.alert(
+        "Dispute Submitted",
+        `Dispute ID: ${disputeId}\nWe have notified the project team and IER review workflow.`,
+        [
+          {
+            text: "Track Dispute",
+            onPress: () => {
+              setSelectedMilestone(null);
+              router.push({
+                pathname: "/(client)/disputes",
+                params: { disputeId }
+              } as never);
+            }
+          },
+          {
+            text: "Close",
+            onPress: () => setSelectedMilestone(null)
           }
-        },
-        {
-          text: "Close",
-          onPress: () => setSelectedMilestone(null)
-        }
-      ]
-    );
+        ]
+      );
+    } catch (error) {
+      Alert.alert("Dispute Failed", error instanceof Error ? error.message : "Please try again.");
+    }
   };
 
   // Trello Columns mapping
@@ -909,7 +1020,7 @@ export default function MilestonesScreen() {
 }
 
 // Sub-components
-function StatusBadge({ value }: { value: MockMilestone["status"] }) {
+function StatusBadge({ value }: { value: ClientMilestoneView["status"] }) {
   const label = value.replace(/_/g, " ");
   let color = COLORS.TEXT_SECONDARY;
   let bg = COLORS.MUTED;
@@ -968,7 +1079,7 @@ function BoardColumn({ title, count, color, children }: { title: string; count: 
   );
 }
 
-function BoardCard({ ms, onPress }: { ms: MockMilestone; onPress: () => void }) {
+function BoardCard({ ms, onPress }: { ms: ClientMilestoneView; onPress: () => void }) {
   const completedCount = ms.checklist.filter(c => c.completed).length;
   return (
     <Pressable

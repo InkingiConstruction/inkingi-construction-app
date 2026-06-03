@@ -15,31 +15,71 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { ClientTopBar } from "@/components/client/client-top-bar";
-import { useSampleFlowStore, MockEngineer } from "@/store/sampleFlow.store";
+import { ClientAssignment, ClientUser } from "@/components/client/client-types";
 
 const { width } = Dimensions.get("window");
 
+type EngineerProfile = ClientUser & {
+  specialty: string;
+  avatar?: string | null;
+  rating: number;
+  completedJobsCount: number;
+  bio: string;
+  phone?: string | null;
+  certifications: string[];
+  gallery: string[];
+  recentJobs: {
+    id: string;
+    title: string;
+    clientName: string;
+    rating: number;
+    feedback: string;
+    completionDate: string;
+  }[];
+};
+
+const toEngineerProfile = (user: ClientUser): EngineerProfile => {
+  const roleSpecific = (user as any).roleSpecific || {};
+  const specialty =
+    roleSpecific.specialization ||
+    roleSpecific.specialty ||
+    roleSpecific.engineerType ||
+    "Construction Engineer";
+
+  return {
+    ...user,
+    specialty,
+    avatar: user.image,
+    rating: Number(roleSpecific.rating || 0),
+    completedJobsCount: Number(roleSpecific.completedJobsCount || 0),
+    bio:
+      roleSpecific.bio ||
+      `${user.name || "Engineer"} is a verified engineer registered on Inkingi.`,
+    phone: (user as any).phoneNumber || null,
+    certifications: Array.isArray(roleSpecific.certifications)
+      ? roleSpecific.certifications
+      : roleSpecific.licenseNumber
+        ? [`License ${roleSpecific.licenseNumber}`]
+        : ["Registration profile submitted"],
+    gallery: Array.isArray(roleSpecific.gallery) ? roleSpecific.gallery : [],
+    recentJobs: Array.isArray(roleSpecific.recentJobs) ? roleSpecific.recentJobs : [],
+  };
+};
+
 export default function AssignEngineerScreen() {
+  const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ projectId?: string }>();
   const [projectId, setProjectId] = useState(params.projectId || "");
   const [searchQuery, setSearchQuery] = useState("");
   const [emailInput, setEmailInput] = useState("");
   
-  // Store actions
-  const { 
-    engineers, 
-    invitations, 
-    inviteEngineer,
-    removeInvitation
-  } = useSampleFlowStore();
-
   // Selected engineer for profile view
-  const [viewingEngineer, setViewingEngineer] = useState<MockEngineer | null>(null);
+  const [viewingEngineer, setViewingEngineer] = useState<EngineerProfile | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "docs" | "ratings" | "jobs">("overview");
 
   // Additional screen states
@@ -57,16 +97,60 @@ export default function AssignEngineerScreen() {
   const projects = projectsQuery.data || [];
   const activeProject = projects.find(p => p.id === projectId) || projects[0];
 
+  const engineersQuery = useQuery({
+    queryKey: ["client-engineers"],
+    queryFn: async () => (await api.get<ClientUser[]>(ENDPOINTS.USERS.ENGINEERS)).data.map(toEngineerProfile),
+  });
+
+  const invitationsQuery = useQuery({
+    queryKey: ["client-project-members", projectId],
+    enabled: Boolean(projectId),
+    queryFn: async () =>
+      (await api.get<ClientAssignment[]>(ENDPOINTS.PROJECT_MEMBERS.LIST, {
+        params: { projectId },
+      })).data.filter((assignment) => assignment.role === "engineer"),
+  });
+
+  const sendInviteMutation = useMutation({
+    mutationFn: async (engineer: EngineerProfile) =>
+      api.post(ENDPOINTS.PROJECT_MEMBERS.CREATE, {
+        projectId,
+        userId: engineer.id,
+        role: "engineer",
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["client-project-members"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-projects"] }),
+      ]);
+    },
+  });
+
+  const removeInviteMutation = useMutation({
+    mutationFn: async (assignmentId: string) =>
+      api.delete(ENDPOINTS.PROJECT_MEMBERS.DETAIL(assignmentId)),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["client-project-members"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-projects"] }),
+      ]);
+    },
+  });
+
   useEffect(() => {
     if (activeProject && !projectId) {
       setProjectId(activeProject.id);
     }
   }, [activeProject]);
 
+  const engineers = engineersQuery.data || [];
+  const invitations = invitationsQuery.data || [];
+
   // Filter engineers by search query
   const filteredEngineers = engineers.filter(e => 
-    e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.specialty.toLowerCase().includes(searchQuery.toLowerCase())
+    (e.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    e.specialty.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (e.email || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Filter invitations for current project
@@ -80,8 +164,21 @@ export default function AssignEngineerScreen() {
 
     const currentProject = projects.find(p => p.id === projectId);
     const projectName = currentProject ? currentProject.name : "Project";
+    const engineer =
+      engineers.find((item) => item.id === engineerIdOrEmail) ||
+      engineers.find((item) => item.email?.toLowerCase() === engineerIdOrEmail.toLowerCase());
 
-    await inviteEngineer(projectId, projectName, engineerIdOrEmail);
+    if (!engineer) {
+      Alert.alert("Engineer Not Found", "That engineer is not registered or is not available yet.");
+      return;
+    }
+
+    try {
+      await sendInviteMutation.mutateAsync(engineer);
+    } catch (error) {
+      Alert.alert("Invitation Failed", error instanceof Error ? error.message : "Please try again.");
+      return;
+    }
 
     // Close engineer detail modal if open
     setViewingEngineer(null);
@@ -93,11 +190,7 @@ export default function AssignEngineerScreen() {
 
     Alert.alert(
       "Invitation Sent",
-      `Nodemailer System Email Dispatched:\n` +
-      `To: ${engineerIdOrEmail}\n` +
-      `Subject: Project Invitation: [${projectName}]\n\n` +
-      `Push Notification: Alert sent to device registry.\n\n` +
-      `Status: Invitation Sent - Pending Acceptance`
+      `Invitation sent to ${name || engineer.name || engineer.email} for ${projectName}.\n\nStatus: Pending acceptance`
     );
   };
 
@@ -381,10 +474,10 @@ export default function AssignEngineerScreen() {
                   >
                     <View style={{ flex: 1, gap: 4 }}>
                       <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "bold", fontSize: 14 }}>
-                        {inv.engineerName || inv.email}
+                        {inv.user?.name || inv.user?.email || "Engineer"}
                       </Text>
                       <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12 }}>
-                        Sent on {new Date(inv.sentAt).toLocaleDateString()}
+                        Sent on {new Date(inv.invitedAt || Date.now()).toLocaleDateString()}
                       </Text>
                       <View style={{ 
                         alignSelf: "flex-start",
@@ -406,15 +499,18 @@ export default function AssignEngineerScreen() {
                       onPress={() => {
                         Alert.alert(
                           "Withdraw Invitation",
-                          `Are you sure you want to withdraw the invitation sent to ${inv.engineerName || inv.email}? This will return them to available state.`,
+                          `Are you sure you want to withdraw the invitation sent to ${inv.user?.name || inv.user?.email || "this engineer"}? This will return them to available state.`,
                           [
                             { text: "Cancel", style: "cancel" },
                             { 
                               text: "Withdraw", 
                               style: "destructive", 
                               onPress: () => {
-                                removeInvitation(inv.id);
-                                Alert.alert("Withdrawn", "The invitation was removed successfully.");
+                                removeInviteMutation.mutate(inv.id, {
+                                  onSuccess: () => Alert.alert("Withdrawn", "The invitation was removed successfully."),
+                                  onError: (error) =>
+                                    Alert.alert("Withdraw Failed", error instanceof Error ? error.message : "Please try again."),
+                                });
                               } 
                             }
                           ]
@@ -632,7 +728,7 @@ export default function AssignEngineerScreen() {
 
               {/* Send Invitation Button */}
               <Pressable
-                onPress={() => handleSendInvite(viewingEngineer.email, viewingEngineer.name)}
+                onPress={() => handleSendInvite(viewingEngineer.id, viewingEngineer.name || undefined)}
                 style={{
                   backgroundColor: COLORS.PRIMARY,
                   borderRadius: 10,

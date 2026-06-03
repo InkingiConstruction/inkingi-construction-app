@@ -7,6 +7,7 @@ export default function RootLayout() {
         { name: "index", title: "Home", icon: "home-outline" },
         { name: "projects", title: "Projects", icon: "business-outline" },
         { name: "messages", title: "Chat", icon: "chatbubbles-outline" },
+        { name: "settings", title: "Settings", icon: "settings-outline" },
       ]}
       hiddenRoutes={[
         "inspections",
@@ -14,7 +15,6 @@ export default function RootLayout() {
         "notifications",
         "profile",
         "profile-edit",
-        "settings",
       ]}
     />
   );

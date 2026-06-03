@@ -47,6 +47,7 @@ export const ENDPOINTS = {
   MILESTONES: {
     LIST: "/milestones",
     DETAIL: (id: string) => `/milestones/${id}`,
+    UPDATE: (id: string) => `/milestones/${id}`,
   },
   BOQ_ITEMS: {
     LIST: "/boq-items",
@@ -94,5 +95,15 @@ export const ENDPOINTS = {
     LIST: "/transactions",
     CREATE: "/transactions",
     DETAIL: (id: string) => `/transactions/${id}`,
+  },
+  DISPUTES: {
+    LIST: "/disputes",
+    CREATE: "/disputes",
+    DETAIL: (id: string) => `/disputes/${id}`,
+  },
+  DISPUTE_EVIDENCE: {
+    LIST: "/dispute-evidence",
+    CREATE: "/dispute-evidence",
+    DETAIL: (id: string) => `/dispute-evidence/${id}`,
   },
 };

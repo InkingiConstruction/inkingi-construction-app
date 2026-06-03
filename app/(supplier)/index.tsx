@@ -112,10 +112,14 @@ export default function SupplierIndex() {
 
 function Metric({ label, value, icon }: { label: string; value: number; icon: keyof typeof Ionicons.glyphMap }) {
   return (
-    <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, flex: 1, padding: 16 }}>
-      <Ionicons name={icon} size={22} color={COLORS.PRIMARY} />
-      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900", marginTop: 10 }}>{value}</Text>
-      <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, fontWeight: "800" }}>{label}</Text>
+    <View style={{ alignItems: "center", backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, flex: 1, flexDirection: "row", gap: 10, padding: 12 }}>
+      <View style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 16, height: 32, justifyContent: "center", width: 32 }}>
+        <Ionicons name={icon} size={16} color={COLORS.PRIMARY} />
+      </View>
+      <View>
+        <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: "900" }}>{value}</Text>
+        <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 10, fontWeight: "800" }}>{label}</Text>
+      </View>
     </View>
   );
 }

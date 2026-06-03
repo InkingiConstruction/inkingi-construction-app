@@ -9,6 +9,7 @@ import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { EngineerMilestone, EngineerProject, EngineerRfq } from "@/components/engineer/engineer-types";
+import { isAcceptedEngineerProject } from "@/components/engineer/engineer-utils";
 
 export default function EngineerRfqs() {
   const queryClient = useQueryClient();
@@ -26,7 +27,7 @@ export default function EngineerRfqs() {
     refetchOnMount: "always",
   });
 
-  const projects = (projectsQuery.data || []).filter((project) => project.engineerId);
+  const projects = (projectsQuery.data || []).filter(isAcceptedEngineerProject);
   const activeProjectId = selectedProjectId || params.projectId || projects[0]?.id || "";
 
   const milestonesQuery = useQuery({

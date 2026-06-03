@@ -1,62 +1,118 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import {
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
-import { useAuthStore, User } from "@/store/auth.store";
-import { useSampleFlowStore } from "@/store/sampleFlow.store";
+import { useAuthStore, User, UserRole } from "@/store/auth.store";
+
+type SettingsRoute =
+  | "/(client)"
+  | "/(client)/messages"
+  | "/(client)/milestones"
+  | "/(client)/notifications"
+  | "/(client)/payments"
+  | "/(client)/profile-edit"
+  | "/(client)/projects"
+  | "/(engineer)"
+  | "/(engineer)/assignments"
+  | "/(engineer)/boq"
+  | "/(engineer)/messages"
+  | "/(engineer)/notifications"
+  | "/(engineer)/profile-edit"
+  | "/(engineer)/projects"
+  | "/(supervisor)"
+  | "/(supervisor)/inspections"
+  | "/(supervisor)/messages"
+  | "/(supervisor)/notifications"
+  | "/(supervisor)/profile-edit"
+  | "/(supervisor)/progress-review"
+  | "/(supplier)"
+  | "/(supplier)/deliveries"
+  | "/(supplier)/messages"
+  | "/(supplier)/notifications"
+  | "/(supplier)/profile-edit"
+  | "/(supplier)/purchase-orders"
+  | "/(supplier)/quotes"
+  | "/(supplier)/rfqs";
+
+type Shortcut = {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  route: SettingsRoute;
+};
 
 const LANGUAGES = [
-  { code: "en", name: "English", flag: "🇬🇧" },
-  { code: "rw", name: "Kinyarwanda", flag: "🇷🇼" },
-  { code: "fr", name: "Français", flag: "🇫🇷" },
-];
+  { code: "en", name: "English" },
+  { code: "rw", name: "Kinyarwanda" },
+  { code: "fr", name: "Français" },
+] as const;
 
-// Mock documents list
-const MOCK_DOCS = [
-  { id: "d1", name: "National ID (Indangamuntu)", status: "verified", icon: "card-outline" as const, date: "2024-01-10" },
-  { id: "d2", name: "Construction Permit", status: "pending", icon: "document-text-outline" as const, date: "2024-03-22" },
-  { id: "d3", name: "Land Certificate (Icyangobwa)", status: "verified", icon: "ribbon-outline" as const, date: "2024-02-05" },
-];
+const roleHome: Record<UserRole, SettingsRoute> = {
+  admin: "/(client)",
+  client: "/(client)",
+  engineer: "/(engineer)",
+  supervisor: "/(supervisor)",
+  supplier: "/(supplier)",
+};
+
+const roleProfileEdit: Record<UserRole, SettingsRoute> = {
+  admin: "/(client)/profile-edit",
+  client: "/(client)/profile-edit",
+  engineer: "/(engineer)/profile-edit",
+  supervisor: "/(supervisor)/profile-edit",
+  supplier: "/(supplier)/profile-edit",
+};
+
+const roleNotifications: Record<UserRole, SettingsRoute> = {
+  admin: "/(client)/notifications",
+  client: "/(client)/notifications",
+  engineer: "/(engineer)/notifications",
+  supervisor: "/(supervisor)/notifications",
+  supplier: "/(supplier)/notifications",
+};
+
+const roleShortcuts: Record<UserRole, Shortcut[]> = {
+  admin: [
+    { icon: "business-outline", label: "Dashboard", route: "/(client)" },
+    { icon: "chatbubbles-outline", label: "Messages", route: "/(client)/messages" },
+  ],
+  client: [
+    { icon: "business-outline", label: "Projects", route: "/(client)/projects" },
+    { icon: "flag-outline", label: "Milestones", route: "/(client)/milestones" },
+    { icon: "card-outline", label: "Payments", route: "/(client)/payments" },
+    { icon: "chatbubbles-outline", label: "Messages", route: "/(client)/messages" },
+  ],
+  engineer: [
+    { icon: "mail-unread-outline", label: "Assignments", route: "/(engineer)/assignments" },
+    { icon: "business-outline", label: "Projects", route: "/(engineer)/projects" },
+    { icon: "list-outline", label: "BOQ", route: "/(engineer)/boq" },
+    { icon: "chatbubbles-outline", label: "Messages", route: "/(engineer)/messages" },
+  ],
+  supervisor: [
+    { icon: "camera-outline", label: "Progress Review", route: "/(supervisor)/progress-review" },
+    { icon: "clipboard-outline", label: "Inspections", route: "/(supervisor)/inspections" },
+    { icon: "chatbubbles-outline", label: "Messages", route: "/(supervisor)/messages" },
+  ],
+  supplier: [
+    { icon: "receipt-outline", label: "RFQs", route: "/(supplier)/rfqs" },
+    { icon: "document-text-outline", label: "Quotes", route: "/(supplier)/quotes" },
+    { icon: "cart-outline", label: "Orders", route: "/(supplier)/purchase-orders" },
+    { icon: "cube-outline", label: "Deliveries", route: "/(supplier)/deliveries" },
+  ],
+};
 
 export function SettingsScreen() {
   const user = useAuthStore((state) => state.user);
-  const loading = useAuthStore((state) => state.loading);
-  const updateProfile = useAuthStore((state) => state.updateProfile);
   const logout = useAuthStore((state) => state.logout);
-
-  const bankAccounts = useSampleFlowStore((s) => s.bankAccounts);
-  const transactions = useSampleFlowStore((s) => s.transactions);
-
-  // Profile fields
-  const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-
-  // Settings
+  const role = (user?.role || "client") as UserRole;
   const [prefs, setPrefs] = useState({ push: true, email: true, sms: false });
-  const [language, setLanguage] = useState<"en" | "rw" | "fr">("en");
+  const [language, setLanguage] = useState<(typeof LANGUAGES)[number]["code"]>("en");
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    setName(user?.name || "");
-    setUsername(user?.username || user?.displayUsername || "");
-    setPhoneNumber(user?.phoneNumber || user?.phone || "");
     setPrefs({
       push: user?.notificationPrefs?.push ?? true,
       email: user?.notificationPrefs?.email ?? true,
@@ -64,600 +120,191 @@ export function SettingsScreen() {
     });
   }, [user]);
 
-  const completion = useMemo(() => {
-    let score = 20;
-    if (user?.emailVerified) score += 20;
-    if (user?.phoneNumber || user?.phone) score += 20;
-    if (user?.username || user?.displayUsername) score += 15;
-    if (user?.kycStatus === "approved") score += 25;
-    return Math.min(score, 100);
-  }, [user]);
+  const go = (route: SettingsRoute) => router.push(route as never);
 
-  const totalEscrow = useMemo(() => {
-    return transactions
-      .filter((t) => t.type === "deposit")
-      .reduce((sum, t) => sum + t.amount, 0);
-  }, [transactions]);
-
-  const save = async () => {
+  const saveSettings = async () => {
     setSaving(true);
-    setMessage("");
-    setError("");
     try {
-      await updateProfile({
-        name: name.trim(),
-        username: username.trim(),
-        displayUsername: username.trim(),
-        phoneNumber: phoneNumber.trim(),
-      });
       const response = await api.patch<{ user: User }>(ENDPOINTS.AUTH.UPDATE_PROFILE, {
         notificationPrefs: prefs,
       });
       useAuthStore.setState({ user: response.data.user, isAuthenticated: true });
-      setMessage("Settings saved successfully.");
+      Alert.alert("Settings saved", "Your preferences were updated.");
     } catch {
-      setError("Failed to save. Check your connection and try again.");
+      Alert.alert("Save failed", "Please check your connection and try again.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleLogout = async () => {
-    await logout();
-    router.replace("/(auth)/login");
+  const handleLogout = () => {
+    Alert.alert("Log out", "Do you want to leave your account?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Log out",
+        style: "destructive",
+        onPress: async () => {
+          await logout();
+          router.replace("/(auth)/login");
+        },
+      },
+    ]);
   };
 
-  const initials = (user?.name || user?.email || "U").slice(0, 1).toUpperCase();
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
-
-          {/* Header */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 24 }}>
-            <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 22, fontWeight: "900", flex: 1 }}>
-              Settings
-            </Text>
-            <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12 }}>v1.0.0</Text>
-          </View>
-
-          {/* ── VERIFICATION CARD (yellow) ── */}
-          <View
-            style={{
-              backgroundColor: "#B9F000",
-              borderRadius: 16,
-              flexDirection: "row",
-              marginBottom: 20,
-              minHeight: 112,
-              overflow: "hidden",
-              padding: 16,
-            }}
-          >
-            {/* Avatar */}
-            <View style={{ justifyContent: "center", marginRight: 14 }}>
-              <View
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 28,
-                  backgroundColor: "rgba(15,23,42,0.12)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  overflow: "hidden",
-                }}
-              >
-                {user?.avatar || user?.image ? (
-                  <Image
-                    source={{ uri: user.avatar || user.image || "" }}
-                    style={{ width: 56, height: 56 }}
-                  />
-                ) : (
-                  <Text style={{ color: COLORS.INK, fontSize: 22, fontWeight: "900" }}>
-                    {initials}
-                  </Text>
-                )}
-              </View>
-            </View>
-
-            {/* Info */}
-            <View style={{ flex: 1, justifyContent: "center" }}>
-              <Text style={{ color: COLORS.INK, fontSize: 16, fontWeight: "900" }}>
-                {user?.name || "Account User"}
-              </Text>
-              <Text style={{ color: COLORS.INK, fontSize: 12, marginTop: 2 }}>
-                {user?.email}
-              </Text>
-              <View
-                style={{
-                  marginTop: 6,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <View
-                  style={{
-                    backgroundColor: "rgba(15,23,42,0.12)",
-                    borderRadius: 8,
-                    paddingHorizontal: 8,
-                    paddingVertical: 2,
-                  }}
-                >
-                  <Text style={{ color: COLORS.INK, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>
-                    {user?.role || "Client"}
-                  </Text>
-                </View>
-                <Text style={{ color: COLORS.INK, fontSize: 11 }}>
-                  {user?.kycStatus === "approved" ? "✓ Verified" : `KYC: ${user?.kycStatus || "pending"}`}
-                </Text>
-              </View>
-            </View>
-
-            {/* Completion ring */}
-            <View style={{ alignItems: "center", justifyContent: "center", width: 76 }}>
-              <View
-                style={{
-                  alignItems: "center",
-                  borderColor: COLORS.INK,
-                  borderRadius: 38,
-                  borderRightColor: "rgba(15,23,42,0.18)",
-                  borderWidth: 5,
-                  height: 72,
-                  justifyContent: "center",
-                  width: 72,
-                }}
-              >
-                <Text style={{ color: COLORS.INK, fontSize: 18, fontWeight: "900" }}>
-                  {completion}%
-                </Text>
-                <Text style={{ color: COLORS.INK, fontSize: 8, fontWeight: "700" }}>PROFILE</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* ── ACCOUNT / PROFILE EDITING ── */}
-          <SectionHeader title="ACCOUNT" />
-          <View style={groupStyle}>
-            <FieldRow icon="person-outline">
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                placeholder="Full name"
-                placeholderTextColor={COLORS.TEXT_LIGHT}
-                style={inputStyle}
-              />
-            </FieldRow>
-            <Divider />
-            <FieldRow icon="at-outline">
-              <TextInput
-                value={username}
-                onChangeText={setUsername}
-                placeholder="Username"
-                placeholderTextColor={COLORS.TEXT_LIGHT}
-                style={inputStyle}
-              />
-            </FieldRow>
-            <Divider />
-            <FieldRow icon="call-outline">
-              <TextInput
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                placeholder="Phone number"
-                placeholderTextColor={COLORS.TEXT_LIGHT}
-                keyboardType="phone-pad"
-                style={inputStyle}
-              />
-            </FieldRow>
-            <Divider />
-            <InfoRow icon="shield-checkmark-outline" label="Role & verification" value={user?.role || "client"} />
-          </View>
-
-          {/* Feedback */}
-          {message ? (
-            <Text style={{ color: COLORS.SUCCESS, fontSize: 12, fontWeight: "800", marginBottom: 8 }}>
-              ✓ {message}
-            </Text>
-          ) : null}
-          {error ? (
-            <Text style={{ color: COLORS.ERROR, fontSize: 12, fontWeight: "800", marginBottom: 8 }}>
-              {error}
-            </Text>
-          ) : null}
-
-          {/* ── FINANCIAL SUMMARY ── */}
-          <SectionHeader title="FINANCIAL SUMMARY" />
-          <View style={{ gap: 10, marginBottom: 20 }}>
-            {/* Escrow balance */}
-            <View
-              style={{
-                backgroundColor: COLORS.SURFACE,
-                borderRadius: 14,
-                padding: 16,
-                borderWidth: 1,
-                borderColor: COLORS.BORDER_LIGHT,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <View
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
-                  backgroundColor: COLORS.PRIMARY_LIGHT,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="lock-closed-outline" size={20} color={COLORS.PRIMARY_DARK} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11, fontWeight: "700", textTransform: "uppercase" }}>
-                  Total Escrow Deposited
-                </Text>
-                <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900", marginTop: 2 }}>
-                  {totalEscrow.toLocaleString()} RWF
-                </Text>
-              </View>
-              <Ionicons name="trending-up-outline" size={20} color={COLORS.SUCCESS} />
-            </View>
-
-            {/* Linked accounts */}
-            {bankAccounts.map((acc) => (
-              <View
-                key={acc.type}
-                style={{
-                  backgroundColor: COLORS.SURFACE,
-                  borderRadius: 14,
-                  padding: 14,
-                  borderWidth: 1,
-                  borderColor: COLORS.BORDER_LIGHT,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <View
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 22,
-                    backgroundColor: acc.type === "bk" ? "#E8F4FD" : "#FFF3E0",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: 20 }}>{acc.type === "bk" ? "🏦" : "📱"}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 13, fontWeight: "900" }}>
-                    {acc.bankName}
-                  </Text>
-                  <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11, marginTop: 1 }}>
-                    {acc.accountNumber}
-                  </Text>
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 13, fontWeight: "900" }}>
-                    {acc.balance.toLocaleString()} RWF
-                  </Text>
-                  <View
-                    style={{
-                      backgroundColor: acc.linked ? COLORS.PRIMARY_LIGHT : COLORS.MUTED,
-                      borderRadius: 6,
-                      paddingHorizontal: 6,
-                      paddingVertical: 1,
-                      marginTop: 2,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: acc.linked ? COLORS.PRIMARY_DARK : COLORS.TEXT_SECONDARY,
-                        fontSize: 9,
-                        fontWeight: "900",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {acc.linked ? "Linked" : "Unlinked"}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          {/* ── DOCUMENT MANAGEMENT ── */}
-          <SectionHeader title="MY DOCUMENTS" />
-          <View style={groupStyle}>
-            {MOCK_DOCS.map((doc, i) => (
-              <View key={doc.id}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14 }}>
-                  <View
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 10,
-                      backgroundColor: doc.status === "verified" ? COLORS.PRIMARY_LIGHT : "#FFF8E1",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Ionicons
-                      name={doc.icon}
-                      size={18}
-                      color={doc.status === "verified" ? COLORS.PRIMARY_DARK : "#F59E0B"}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 13, fontWeight: "800" }}>
-                      {doc.name}
-                    </Text>
-                    <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11, marginTop: 1 }}>
-                      Uploaded {doc.date}
-                    </Text>
-                  </View>
-                  <View
-                    style={{
-                      backgroundColor: doc.status === "verified" ? COLORS.PRIMARY_LIGHT : "#FEF3C7",
-                      borderRadius: 8,
-                      paddingHorizontal: 8,
-                      paddingVertical: 3,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: doc.status === "verified" ? COLORS.PRIMARY_DARK : "#92400E",
-                        fontSize: 10,
-                        fontWeight: "900",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {doc.status}
-                    </Text>
-                  </View>
-                </View>
-                {i < MOCK_DOCS.length - 1 && <Divider />}
-              </View>
-            ))}
-            <Divider />
-            <Pressable
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-                padding: 14,
-                opacity: pressed ? 0.7 : 1,
-              })}
-            >
-              <View
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  borderWidth: 1.5,
-                  borderStyle: "dashed",
-                  borderColor: COLORS.PRIMARY,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Ionicons name="add" size={20} color={COLORS.PRIMARY} />
-              </View>
-              <Text style={{ color: COLORS.PRIMARY, fontSize: 13, fontWeight: "900", flex: 1 }}>
-                Upload New Document
-              </Text>
-              <Ionicons name="cloud-upload-outline" size={18} color={COLORS.PRIMARY} />
-            </Pressable>
-          </View>
-
-          {/* ── NOTIFICATIONS ── */}
-          <SectionHeader title="NOTIFICATIONS" />
-          <View style={groupStyle}>
-            <NotifRow
-              icon="notifications-outline"
-              title="Push notifications"
-              description="Project updates and delivery alerts."
-              value={prefs.push}
-              onValueChange={(v) => setPrefs((p) => ({ ...p, push: v }))}
-            />
-            <Divider />
-            <NotifRow
-              icon="mail-outline"
-              title="Email notifications"
-              description="KYC decisions and account messages."
-              value={prefs.email}
-              onValueChange={(v) => setPrefs((p) => ({ ...p, email: v }))}
-            />
-            <Divider />
-            <NotifRow
-              icon="chatbox-ellipses-outline"
-              title="SMS notifications"
-              description="Phone alerts when supported."
-              value={prefs.sms}
-              onValueChange={(v) => setPrefs((p) => ({ ...p, sms: v }))}
-            />
-          </View>
-
-          {/* ── LANGUAGE ── */}
-          <SectionHeader title="APP LANGUAGE" />
-          <View style={groupStyle}>
-            {LANGUAGES.map((lang, i) => (
-              <View key={lang.code}>
-                <Pressable
-                  onPress={() => setLanguage(lang.code as "en" | "rw" | "fr")}
-                  style={({ pressed }) => ({
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: 14,
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
-                  <Text style={{ fontSize: 22 }}>{lang.flag}</Text>
-                  <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "800", flex: 1 }}>
-                    {lang.name}
-                  </Text>
-                  <View
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      borderWidth: 2,
-                      borderColor: language === lang.code ? COLORS.PRIMARY : COLORS.TEXT_LIGHT,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {language === lang.code && (
-                      <View
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: 5,
-                          backgroundColor: COLORS.PRIMARY,
-                        }}
-                      />
-                    )}
-                  </View>
-                </Pressable>
-                {i < LANGUAGES.length - 1 && <Divider />}
-              </View>
-            ))}
-          </View>
-
-          {/* ── HELP ── */}
-          <View style={[groupStyle, { marginBottom: 24 }]}>
-            <Pressable
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-                padding: 14,
-                opacity: pressed ? 0.7 : 1,
-              })}
-            >
-              <View style={iconBoxStyle}>
-                <Ionicons name="headset-outline" size={16} color={COLORS.TEXT_SECONDARY} />
-              </View>
-              <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "800" }}>
-                Help Center
-              </Text>
-              <Ionicons name="chevron-forward" size={16} color={COLORS.TEXT_SECONDARY} />
-            </Pressable>
-          </View>
-
-          {/* Save + Logout */}
-          <Pressable
-            disabled={saving}
-            onPress={save}
-            style={{
-              alignItems: "center",
-              backgroundColor: COLORS.PRIMARY,
-              borderRadius: 14,
-              opacity: saving ? 0.7 : 1,
-              paddingVertical: 15,
-              marginBottom: 16,
-            }}
-          >
-            <Text style={{ color: "#FFF", fontWeight: "900", fontSize: 15 }}>
-              {saving ? "Saving..." : "Save Changes"}
-            </Text>
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.iconButton}>
+            <Ionicons name="arrow-back" size={20} color={COLORS.TEXT_PRIMARY} />
           </Pressable>
-
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <Pressable
-              onPress={handleLogout}
-              style={({ pressed }) => ({
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-                paddingVertical: 12,
-                opacity: pressed ? 0.7 : 1,
-              })}
-            >
-              <Ionicons name="log-out-outline" size={19} color={COLORS.ERROR} />
-              <Text style={{ color: COLORS.ERROR, fontWeight: "900" }}>Log Out</Text>
-            </Pressable>
-            <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12 }}>Version 1.0.0</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.eyebrow}>{role.toUpperCase()} SETTINGS</Text>
+            <Text style={styles.title}>Settings</Text>
           </View>
+          <Pressable onPress={() => go(roleNotifications[role])} style={styles.iconButton}>
+            <Ionicons name="notifications-outline" size={20} color={COLORS.TEXT_PRIMARY} />
+          </Pressable>
+        </View>
 
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <View style={styles.hero}>
+          <View style={styles.heroIcon}>
+            <Ionicons name="settings-outline" size={26} color={COLORS.TEXT_WHITE} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heroTitle}>App preferences</Text>
+            <Text style={styles.heroBody}>
+              Manage notifications, language, account access, and shortcuts for your role.
+            </Text>
+          </View>
+        </View>
+
+        <Group title="Account">
+          <MenuRow icon="person-outline" label={user?.name || "Account user"} value={user?.email || "No email"} onPress={() => go(roleProfileEdit[role])} />
+          <MenuRow icon="id-card-outline" label="Role" value={role} />
+          <MenuRow icon="create-outline" label="Edit profile" value="Open" onPress={() => go(roleProfileEdit[role])} />
+        </Group>
+
+        <Group title="Workspace Shortcuts">
+          <MenuRow icon="home-outline" label="Dashboard" value="Home" onPress={() => go(roleHome[role])} />
+          {roleShortcuts[role].map((shortcut) => (
+            <MenuRow
+              key={`${shortcut.label}-${shortcut.route}`}
+              icon={shortcut.icon}
+              label={shortcut.label}
+              value="Open"
+              onPress={() => go(shortcut.route)}
+            />
+          ))}
+        </Group>
+
+        <Group title="Notifications">
+          <ToggleRow
+            icon="notifications-outline"
+            title="Push notifications"
+            description="Project invitations, approvals, chat, and delivery updates."
+            value={prefs.push}
+            onValueChange={(value) => setPrefs((state) => ({ ...state, push: value }))}
+          />
+          <Divider />
+          <ToggleRow
+            icon="mail-outline"
+            title="Email notifications"
+            description="Verification, account, and workflow messages."
+            value={prefs.email}
+            onValueChange={(value) => setPrefs((state) => ({ ...state, email: value }))}
+          />
+          <Divider />
+          <ToggleRow
+            icon="chatbox-ellipses-outline"
+            title="SMS notifications"
+            description="Phone alerts when supported by the platform."
+            value={prefs.sms}
+            onValueChange={(value) => setPrefs((state) => ({ ...state, sms: value }))}
+          />
+        </Group>
+
+        <Group title="Language">
+          {LANGUAGES.map((item, index) => (
+            <View key={item.code}>
+              <Pressable onPress={() => setLanguage(item.code)} style={styles.languageRow}>
+                <View style={styles.rowIcon}>
+                  <Ionicons name="language-outline" size={16} color={COLORS.PRIMARY_DARK} />
+                </View>
+                <Text style={styles.rowLabel}>{item.name}</Text>
+                <View style={[styles.radio, language === item.code && styles.radioActive]}>
+                  {language === item.code ? <View style={styles.radioDot} /> : null}
+                </View>
+              </Pressable>
+              {index < LANGUAGES.length - 1 ? <Divider /> : null}
+            </View>
+          ))}
+        </Group>
+
+        <Group title="Support">
+          <MenuRow icon="headset-outline" label="Help Center" value="Support" />
+          <MenuRow icon="information-circle-outline" label="App version" value="1.0.0" />
+        </Group>
+
+        <Pressable disabled={saving} onPress={saveSettings} style={[styles.saveButton, saving && { opacity: 0.7 }]}>
+          <Text style={styles.saveText}>{saving ? "Saving..." : "Save settings"}</Text>
+        </Pressable>
+
+        <View style={styles.footer}>
+          <Pressable onPress={handleLogout} style={styles.logoutButton}>
+            <Ionicons name="log-out-outline" size={19} color={COLORS.ERROR} />
+            <Text style={styles.logoutText}>Log out</Text>
+          </Pressable>
+          <Text style={styles.versionText}>Inkingi 1.0.0</Text>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-// ─── Sub-components ────────────────────────────────────────────────
-
-function SectionHeader({ title }: { title: string }) {
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Text
-      style={{
-        color: COLORS.TEXT_SECONDARY,
-        fontSize: 11,
-        fontWeight: "900",
-        letterSpacing: 0.8,
-        marginBottom: 8,
-        marginTop: 4,
-        textTransform: "uppercase",
-      }}
-    >
-      {title}
-    </Text>
-  );
-}
-
-function Divider() {
-  return (
-    <View
-      style={{
-        height: 1,
-        backgroundColor: COLORS.BORDER_LIGHT,
-        marginHorizontal: 14,
-      }}
-    />
-  );
-}
-
-function FieldRow({ icon, children }: { icon: keyof typeof Ionicons.glyphMap; children: React.ReactNode }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 4, minHeight: 48 }}>
-      <View style={iconBoxStyle}>
-        <Ionicons name={icon} size={16} color={COLORS.TEXT_SECONDARY} />
-      </View>
+    <View style={styles.group}>
+      <Text style={styles.groupTitle}>{title}</Text>
       {children}
     </View>
   );
 }
 
-function InfoRow({
+function MenuRow({
   icon,
   label,
   value,
+  onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value?: string;
+  onPress?: () => void;
 }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 14, minHeight: 48 }}>
-      <View style={iconBoxStyle}>
-        <Ionicons name={icon} size={16} color={COLORS.TEXT_SECONDARY} />
+  const content = (
+    <>
+      <View style={styles.rowIcon}>
+        <Ionicons name={icon} size={16} color={COLORS.PRIMARY_DARK} />
       </View>
-      <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "800" }}>{label}</Text>
-      {value ? (
-        <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 13, fontWeight: "700", marginRight: 4 }}>
-          {value}
-        </Text>
-      ) : null}
-      <Ionicons name="chevron-forward" size={16} color={COLORS.TEXT_SECONDARY} />
-    </View>
+      <Text numberOfLines={1} style={styles.rowLabel}>{label}</Text>
+      {value ? <Text numberOfLines={1} style={styles.rowValue}>{value}</Text> : null}
+      {onPress ? <Ionicons name="chevron-forward" size={16} color={COLORS.TEXT_LIGHT} /> : null}
+    </>
   );
+
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={styles.row}>
+        {content}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.row}>{content}</View>;
 }
 
-function NotifRow({
+function ToggleRow({
   icon,
   title,
   description,
@@ -668,27 +315,16 @@ function NotifRow({
   title: string;
   description: string;
   value: boolean;
-  onValueChange: (v: boolean) => void;
+  onValueChange: (value: boolean) => void;
 }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14 }}>
-      <View
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 12,
-          backgroundColor: COLORS.PRIMARY_LIGHT,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+    <View style={styles.toggleRow}>
+      <View style={styles.toggleIcon}>
         <Ionicons name={icon} size={20} color={COLORS.PRIMARY_DARK} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>{title}</Text>
-        <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11, marginTop: 2, lineHeight: 16 }}>
-          {description}
-        </Text>
+        <Text style={styles.toggleTitle}>{title}</Text>
+        <Text style={styles.toggleDescription}>{description}</Text>
       </View>
       <Switch
         value={value}
@@ -700,31 +336,209 @@ function NotifRow({
   );
 }
 
-// ─── Styles ────────────────────────────────────────────────────────
+function Divider() {
+  return <View style={styles.divider} />;
+}
 
-const groupStyle = {
-  backgroundColor: COLORS.SURFACE,
-  borderRadius: 14,
-  borderWidth: 1,
-  borderColor: COLORS.BORDER_LIGHT,
-  overflow: "hidden" as const,
-  marginBottom: 20,
-};
-
-const inputStyle = {
-  color: COLORS.TEXT_PRIMARY,
-  flex: 1,
-  fontWeight: "800" as const,
-  paddingVertical: 10,
-  fontSize: 14,
-};
-
-const iconBoxStyle = {
-  alignItems: "center" as const,
-  borderColor: COLORS.BORDER,
-  borderRadius: 7,
-  borderWidth: 1,
-  height: 24,
-  justifyContent: "center" as const,
-  width: 24,
-};
+const styles = StyleSheet.create({
+  safe: {
+    backgroundColor: COLORS.BACKGROUND,
+    flex: 1,
+  },
+  content: {
+    padding: 20,
+    paddingBottom: 120,
+  },
+  header: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  iconButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  eyebrow: {
+    color: COLORS.TEXT_LIGHT,
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  title: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 27,
+    fontWeight: "900",
+  },
+  hero: {
+    alignItems: "center",
+    backgroundColor: COLORS.INK,
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 13,
+    marginBottom: 14,
+    padding: 18,
+  },
+  heroIcon: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 13,
+    height: 54,
+    justifyContent: "center",
+    width: 54,
+  },
+  heroTitle: {
+    color: COLORS.TEXT_WHITE,
+    fontSize: 21,
+    fontWeight: "900",
+  },
+  heroBody: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 5,
+  },
+  group: {
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+    overflow: "hidden",
+    paddingVertical: 8,
+  },
+  groupTitle: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 11,
+    fontWeight: "900",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    textTransform: "uppercase",
+  },
+  row: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  rowIcon: {
+    alignItems: "center",
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderRadius: 7,
+    height: 28,
+    justifyContent: "center",
+    width: 28,
+  },
+  rowLabel: {
+    color: COLORS.TEXT_PRIMARY,
+    flex: 1,
+    fontWeight: "800",
+  },
+  rowValue: {
+    color: COLORS.TEXT_SECONDARY,
+    flexShrink: 1,
+    fontSize: 12,
+    fontWeight: "800",
+    maxWidth: 132,
+    textTransform: "capitalize",
+  },
+  toggleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+  },
+  toggleIcon: {
+    alignItems: "center",
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderRadius: 12,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  toggleTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontWeight: "900",
+  },
+  toggleDescription: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  languageRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    minHeight: 50,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  radio: {
+    alignItems: "center",
+    borderColor: COLORS.TEXT_LIGHT,
+    borderRadius: 10,
+    borderWidth: 2,
+    height: 20,
+    justifyContent: "center",
+    width: 20,
+  },
+  radioActive: {
+    borderColor: COLORS.PRIMARY,
+  },
+  radioDot: {
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 5,
+    height: 10,
+    width: 10,
+  },
+  divider: {
+    backgroundColor: COLORS.BORDER_LIGHT,
+    height: 1,
+    marginHorizontal: 14,
+  },
+  saveButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 8,
+    marginTop: 2,
+    paddingVertical: 14,
+  },
+  saveText: {
+    color: COLORS.TEXT_WHITE,
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  footer: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+  },
+  logoutButton: {
+    alignItems: "center",
+    backgroundColor: COLORS.SURFACE,
+    borderColor: "rgba(220, 38, 38, 0.20)",
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  logoutText: {
+    color: COLORS.ERROR,
+    fontWeight: "900",
+  },
+  versionText: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 12,
+  },
+});

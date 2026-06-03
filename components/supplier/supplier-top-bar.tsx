@@ -25,7 +25,6 @@ export function SupplierTopBar({ title, subtitle }: { title: string; subtitle?: 
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
           <TopButton icon="notifications-outline" onPress={() => router.push("/(supplier)/notifications")} />
-          <TopButton icon="person-circle-outline" onPress={() => router.push("/(supplier)/profile")} />
           <TopButton icon="settings-outline" onPress={() => router.push("/(supplier)/settings")} />
         </View>
       </View>

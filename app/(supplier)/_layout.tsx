@@ -10,8 +10,9 @@ export default function RootLayout() {
         { name: "purchase-orders", title: "Orders", icon: "cart-outline" },
         { name: "deliveries", title: "Deliver", icon: "cube-outline" },
         { name: "messages", title: "Chat", icon: "chatbubbles-outline" },
+        { name: "settings", title: "Settings", icon: "settings-outline" },
       ]}
-      hiddenRoutes={["notifications", "profile", "profile-edit", "settings"]}
+      hiddenRoutes={["notifications", "profile", "profile-edit"]}
     />
   );
 }

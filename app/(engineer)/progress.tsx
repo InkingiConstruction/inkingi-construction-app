@@ -9,6 +9,7 @@ import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { EngineerMilestone, EngineerProgressPhoto, EngineerProject } from "@/components/engineer/engineer-types";
+import { isAcceptedEngineerProject } from "@/components/engineer/engineer-utils";
 import { ProgressMedia, ProgressMediaViewer } from "@/components/shared/progress-media-viewer";
 
 export default function EngineerProgress() {
@@ -26,7 +27,7 @@ export default function EngineerProgress() {
     refetchOnMount: "always",
   });
 
-  const projects = (projectsQuery.data || []).filter((project) => project.engineerId);
+  const projects = (projectsQuery.data || []).filter(isAcceptedEngineerProject);
   const activeProjectId = selectedProjectId || params.projectId || projects[0]?.id || "";
 
   const milestonesQuery = useQuery({

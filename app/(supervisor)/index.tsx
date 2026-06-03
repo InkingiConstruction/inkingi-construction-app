@@ -113,38 +113,60 @@ export default function SupervisorIndex() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+        <View style={{ gap: 14, marginBottom: 18 }}>
+          <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between" }}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>
+                SUPERVISOR PORTAL
+              </Text>
+              <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900" }}>
+                Dashboard
+              </Text>
+              <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20, marginTop: 4 }}>
+                Review milestones, inspect site progress, and keep projects moving.
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <HeaderButton
+                icon="notifications-outline"
+                badge={unreadAlerts}
+                onPress={() => router.push("/(supervisor)/notifications")}
+              />
+              <HeaderButton icon="settings-outline" onPress={() => router.push("/(supervisor)/settings")} />
+            </View>
+          </View>
+
+          <View
+            style={{
+              backgroundColor: COLORS.SURFACE,
+              borderColor: COLORS.BORDER_LIGHT,
+              borderRadius: 10,
+              borderWidth: 1,
+              flexDirection: "row",
+              gap: 12,
+              padding: 14,
+            }}
+          >
             <View
               style={{
                 alignItems: "center",
-                backgroundColor: COLORS.PRIMARY,
-                borderRadius: 10,
-                height: 48,
+                backgroundColor: COLORS.PRIMARY_LIGHT,
+                borderRadius: 8,
+                height: 44,
                 justifyContent: "center",
-                width: 48,
+                width: 44,
               }}
             >
-              <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 18, fontWeight: "900" }}>
-                {(user?.name || "S").slice(0, 1).toUpperCase()}
-              </Text>
+              <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.PRIMARY_DARK} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900", letterSpacing: 0 }}>
-                SUPERVISOR DESK
-              </Text>
-              <Text numberOfLines={1} style={{ color: COLORS.TEXT_PRIMARY, fontSize: 20, fontWeight: "900" }}>
+              <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>
                 {user?.name || "Supervisor"}
               </Text>
+              <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 3 }}>
+                Inspect milestones, review progress, and protect project quality.
+              </Text>
             </View>
-          </View>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <HeaderButton
-              icon="notifications-outline"
-              badge={unreadAlerts}
-              onPress={() => router.push("/(supervisor)/notifications")}
-            />
-            <HeaderButton icon="settings-outline" onPress={() => router.push("/(supervisor)/settings")} />
           </View>
         </View>
 
@@ -427,21 +449,28 @@ function Metric({ title, value, icon }: { title: string; value: number; icon: ke
   return (
     <View
       style={{
+        alignItems: "center",
         backgroundColor: COLORS.SURFACE,
         borderColor: COLORS.BORDER_LIGHT,
         borderRadius: 10,
         borderWidth: 1,
         flex: 1,
-        padding: 16,
+        flexDirection: "row",
+        gap: 10,
+        padding: 12,
       }}
     >
-      <Ionicons name={icon} size={22} color={COLORS.PRIMARY} />
-      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900", marginTop: 10 }}>
-        {value}
-      </Text>
-      <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, fontWeight: "800", marginTop: 2 }}>
-        {title}
-      </Text>
+      <View style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 16, height: 32, justifyContent: "center", width: 32 }}>
+        <Ionicons name={icon} size={16} color={COLORS.PRIMARY} />
+      </View>
+      <View>
+        <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: "900" }}>
+          {value}
+        </Text>
+        <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 10, fontWeight: "800" }}>
+          {title}
+        </Text>
+      </View>
     </View>
   );
 }

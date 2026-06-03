@@ -1,1258 +1,458 @@
-import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
-import React, { useMemo, useState } from "react";
-import {
-  Alert,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLocalSearchParams } from "expo-router";
+import { useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { api } from "@/api/api";
+import { ENDPOINTS } from "@/api/endpoints";
+import { COLORS } from "@/constants/colors";
+import { EngineerMilestone, EngineerProject } from "@/components/engineer/engineer-types";
+import { isAcceptedEngineerProject } from "@/components/engineer/engineer-utils";
 
-type MilestoneStatus =
-  | "pending"
-  | "in_progress"
-  | "pending_supervisor"
-  | "approved";
-
-type Project = {
-  id: string;
-  name: string;
-  clientName: string;
-  location: string;
-  budget: number;
-  coverImage: string;
+const statusColor = (status: string) => {
+  if (status === "paid") return COLORS.SUCCESS;
+  if (status === "awaiting_client_payment") return COLORS.PRIMARY;
+  if (status === "pending_supervisor") return "#7C3AED";
+  if (status === "revision_required") return COLORS.WARNING;
+  if (status === "active") return "#2563EB";
+  return COLORS.TEXT_LIGHT;
 };
 
-type BoqItem = {
-  id: string;
-  category: string;
-  material: string;
-  quantity: number;
-  unit: string;
-  unitPrice: number;
-  total: number;
-};
+export default function EngineerMilestones() {
+  const queryClient = useQueryClient();
+  const params = useLocalSearchParams<{ projectId?: string }>();
+  const [selectedProjectId, setSelectedProjectId] = useState(params.projectId || "");
+  const [name, setName] = useState("");
+  const [budgetPercentage, setBudgetPercentage] = useState("");
+  const [durationDays, setDurationDays] = useState("");
+  const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
 
-type Milestone = {
-  id: string;
-  name: string;
-  percentage: number;
-  durationDays: number;
-  status: MilestoneStatus;
+  const projectsQuery = useQuery({
+    queryKey: ["engineer-projects"],
+    queryFn: async () =>
+      (await api.get<EngineerProject[]>(ENDPOINTS.PROJECTS.LIST)).data.filter(isAcceptedEngineerProject),
+    refetchOnMount: "always",
+  });
 
-  project: Project;
+  const projects = projectsQuery.data || [];
+  const activeProjectId = selectedProjectId || projects[0]?.id || "";
+  const activeProject = projects.find((project) => project.id === activeProjectId);
 
-  boqItems: BoqItem[];
+  const milestonesQuery = useQuery({
+    queryKey: ["engineer-milestones", activeProjectId],
+    enabled: Boolean(activeProjectId),
+    queryFn: async () =>
+      (await api.get<EngineerMilestone[]>(ENDPOINTS.MILESTONES.LIST, { params: { projectId: activeProjectId } })).data,
+  });
 
-  completionPhotos: string[];
+  const milestones = milestonesQuery.data || [];
+  const totalPercentage = milestones.reduce((sum, milestone) => sum + Number(milestone.budgetPercentage || 0), 0);
+  const remainingPercentage = Math.max(0, 100 - totalPercentage);
+  const completedCount = milestones.filter((milestone) => milestone.status === "paid").length;
 
-  completionNotes: string;
-};
-
-const boqCategories = [
-  "Concrete",
-  "Steel",
-  "Timber",
-  "Finishes",
-  "Labor",
-  "Equipment",
-];
-
-const units = [
-  "bags",
-  "cubic meters",
-  "pieces",
-  "lumpsum",
-];
-
-export default function MilestonesScreen() {
-  const [showBoqModal, setShowBoqModal] =
-    useState(false);
-
-  const [showPaymentModal, setShowPaymentModal] =
-    useState(false);
-
-  const [selectedMilestone, setSelectedMilestone] =
-    useState<Milestone | null>(null);
-
-  const [milestones, setMilestones] = useState<
-    Milestone[]
-  >([
-    {
-      id: "1",
-      name: "Foundation Works",
-      percentage: 20,
-      durationDays: 14,
-      status: "in_progress",
-
-      project: {
-        id: "p1",
-        name: "Luxury Villa Construction",
-        clientName: "John Doe",
-        location: "Nyarutarama, Kigali",
-        budget: 85000000,
-        coverImage:
-          "https://picsum.photos/600/400",
-      },
-
-      boqItems: [],
-      completionPhotos: [],
-      completionNotes: "",
-    },
-
-    {
-      id: "2",
-      name: "Wall Construction",
-      percentage: 35,
-      durationDays: 25,
-      status: "pending",
-
-      project: {
-        id: "p1",
-        name: "Luxury Villa Construction",
-        clientName: "John Doe",
-        location: "Nyarutarama, Kigali",
-        budget: 85000000,
-        coverImage:
-          "https://picsum.photos/601/400",
-      },
-
-      boqItems: [],
-      completionPhotos: [],
-      completionNotes: "",
-    },
-  ]);
-
-  // BOQ STATES
-  const [category, setCategory] =
-    useState("Concrete");
-
-  const [material, setMaterial] =
-    useState("");
-
-  const [quantity, setQuantity] =
-    useState("");
-
-  const [unit, setUnit] =
-    useState("bags");
-
-  const [unitPrice, setUnitPrice] =
-    useState("");
-
-  // PAYMENT STATES
-  const [workComplete, setWorkComplete] =
-    useState(false);
-
-  const [completionPhotos, setCompletionPhotos] =
-    useState<string[]>([]);
-
-  const [completionNotes, setCompletionNotes] =
-    useState("");
-
-  const calculatedTotal = useMemo(() => {
-    return (
-      (Number(quantity) || 0) *
-      (Number(unitPrice) || 0)
-    );
-  }, [quantity, unitPrice]);
-
-  const openBoqModal = (
-    milestone: Milestone
-  ) => {
-    setSelectedMilestone(milestone);
-    setShowBoqModal(true);
-  };
-
-  const openPaymentModal = (
-    milestone: Milestone
-  ) => {
-    setSelectedMilestone(milestone);
-    setShowPaymentModal(true);
-  };
-
-  const saveBoqItem = () => {
-    if (
-      !material ||
-      !quantity ||
-      !unitPrice
-    ) {
-      Alert.alert(
-        "Validation",
-        "Please fill all fields"
-      );
-
-      return;
-    }
-
-    if (!selectedMilestone) return;
-
-    const newItem: BoqItem = {
-      id: Date.now().toString(),
-      category,
-      material,
-      quantity: Number(quantity),
-      unit,
-      unitPrice: Number(unitPrice),
-      total: calculatedTotal,
-    };
-
-    setMilestones((prev) =>
-      prev.map((m) =>
-        m.id === selectedMilestone.id
-          ? {
-              ...m,
-              boqItems: [
-                ...m.boqItems,
-                newItem,
-              ],
-            }
-          : m
-      )
-    );
-
-    setMaterial("");
-    setQuantity("");
-    setUnitPrice("");
-
-    Alert.alert(
-      "Success",
-      "BOQ item added successfully"
-    );
-
-    setShowBoqModal(false);
-  };
-
-  const uploadCompletionPhoto =
-    async () => {
-      try {
-        const permission =
-          await ImagePicker.requestCameraPermissionsAsync();
-
-        if (
-          permission.status !== "granted"
-        ) {
-          Alert.alert(
-            "Permission required",
-            "Camera permission required"
-          );
-
-          return;
-        }
-
-        if (
-          completionPhotos.length >= 10
-        ) {
-          Alert.alert(
-            "Limit reached",
-            "Maximum 10 photos allowed"
-          );
-
-          return;
-        }
-
-        const result =
-          await ImagePicker.launchCameraAsync(
-            {
-              mediaTypes:
-                ImagePicker.MediaTypeOptions.Images,
-              quality: 1,
-            }
-          );
-
-        if (result.canceled) return;
-
-        const imageUri =
-          result.assets[0].uri;
-
-        /**
-         * CLOUDINARY UPLOAD PLACEHOLDER
-         */
-
-        setCompletionPhotos((prev) => [
-          ...prev,
-          imageUri,
-        ]);
-      } catch (error) {
-        Alert.alert(
-          "Error",
-          "Failed to upload image"
-        );
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeProjectId) throw new Error("Select a project first.");
+      if (!name.trim() || !budgetPercentage.trim()) {
+        throw new Error("Milestone name and budget percentage are required.");
       }
-    };
 
-  const submitForReview = () => {
-    if (!selectedMilestone) return;
+      return api.post(ENDPOINTS.MILESTONES.LIST, {
+        projectId: activeProjectId,
+        name: name.trim(),
+        budgetPercentage: Number(budgetPercentage),
+        durationDays: durationDays.trim() ? Number(durationDays) : undefined,
+        acceptanceCriteria: acceptanceCriteria.trim() || undefined,
+        order: milestones.length + 1,
+        status: milestones.length === 0 ? "active" : "pending",
+      });
+    },
+    onSuccess: async () => {
+      setName("");
+      setBudgetPercentage("");
+      setDurationDays("");
+      setAcceptanceCriteria("");
+      await queryClient.invalidateQueries({ queryKey: ["engineer-milestones"] });
+      Alert.alert("Milestone created", "The milestone was added to the project plan.");
+    },
+    onError: (error) => Alert.alert("Create failed", error instanceof Error ? error.message : "Please try again."),
+  });
 
-    if (!workComplete) {
-      Alert.alert(
-        "Validation",
-        "Please confirm work completion"
-      );
-
-      return;
-    }
-
-    if (
-      completionPhotos.length < 5
-    ) {
-      Alert.alert(
-        "Validation",
-        "Minimum 5 completion photos required"
-      );
-
-      return;
-    }
-
-    setMilestones((prev) =>
-      prev.map((m) =>
-        m.id === selectedMilestone.id
-          ? {
-              ...m,
-              status:
-                "pending_supervisor",
-              completionPhotos,
-              completionNotes,
-            }
-          : m
-      )
-    );
-
-    Alert.alert(
-      "Submitted",
-      "Milestone submitted for supervisor review"
-    );
-
-    setCompletionPhotos([]);
-    setCompletionNotes("");
-    setWorkComplete(false);
-
-    setShowPaymentModal(false);
-  };
-
-  const getStatusColor = (
-    status: MilestoneStatus
-  ) => {
-    switch (status) {
-      case "pending":
-        return "#F59E0B";
-
-      case "in_progress":
-        return "#2563EB";
-
-      case "pending_supervisor":
-        return "#7C3AED";
-
-      case "approved":
-        return "#059669";
-
-      default:
-        return "#64748B";
-    }
-  };
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) =>
+      api.put(ENDPOINTS.MILESTONES.UPDATE(id), { status }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["engineer-milestones"] });
+    },
+    onError: (error) => Alert.alert("Update failed", error instanceof Error ? error.message : "Please try again."),
+  });
 
   return (
-    <>
-      <ScrollView
-        style={styles.container}
-      >
-        <Text style={styles.pageTitle}>
-          Project Milestones
-        </Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+        <View style={{ gap: 16 }}>
+          <Header />
 
-        {milestones.map(
-          (milestone) => (
-            <View
-              key={milestone.id}
-              style={styles.card}
-            >
-              {/* PROJECT DETAILS */}
-
-              <Image
-                source={{
-                  uri:
-                    milestone.project
-                      .coverImage,
-                }}
-                style={
-                  styles.projectImage
-                }
-                contentFit="cover"
+          {projectsQuery.isLoading ? (
+            <ActivityIndicator color={COLORS.PRIMARY} style={{ marginTop: 40 }} />
+          ) : projects.length === 0 ? (
+            <Empty text="No accepted engineer projects found. Accept a client assignment first." />
+          ) : (
+            <>
+              <ProjectSelector
+                projects={projects}
+                activeProjectId={activeProjectId}
+                onSelect={(id) => setSelectedProjectId(id)}
               />
 
-              <Text
-                style={
-                  styles.projectName
-                }
-              >
-                {
-                  milestone.project
-                    .name
-                }
-              </Text>
-
-              <Text
-                style={
-                  styles.projectInfo
-                }
-              >
-                Client:{" "}
-                {
-                  milestone.project
-                    .clientName
-                }
-              </Text>
-
-              <Text
-                style={
-                  styles.projectInfo
-                }
-              >
-                Location:{" "}
-                {
-                  milestone.project
-                    .location
-                }
-              </Text>
-
-              <Text
-                style={
-                  styles.projectInfo
-                }
-              >
-                Budget:{" "}
-                {milestone.project.budget.toLocaleString()}{" "}
-                RWF
-              </Text>
-
-              {/* MILESTONE */}
-
-              <View
-                style={
-                  styles.headerRow
-                }
-              >
-                <View>
-                  <Text
-                    style={
-                      styles.milestoneTitle
-                    }
-                  >
-                    {
-                      milestone.name
-                    }
-                  </Text>
-
-                  <Text
-                    style={
-                      styles.subText
-                    }
-                  >
-                    {
-                      milestone.percentage
-                    }
-                    % •{" "}
-                    {
-                      milestone.durationDays
-                    }{" "}
-                    days
+              <View style={styles.darkPanel}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.darkEyebrow}>PROJECT PLAN</Text>
+                  <Text style={styles.darkTitle}>{activeProject?.name || "Project"}</Text>
+                  <Text style={styles.darkBody}>
+                    {milestones.length} milestone{milestones.length === 1 ? "" : "s"} • {remainingPercentage}% budget remaining
                   </Text>
                 </View>
-
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor:
-                        getStatusColor(
-                          milestone.status
-                        ),
-                    },
-                  ]}
-                >
-                  <Text
-                    style={
-                      styles.statusText
-                    }
-                  >
-                    {
-                      milestone.status
-                    }
-                  </Text>
+                <View style={styles.darkIcon}>
+                  <Ionicons name="flag-outline" size={26} color={COLORS.TEXT_WHITE} />
                 </View>
               </View>
 
-              {/* BOQ */}
-
-              <View
-                style={
-                  styles.section
-                }
-              >
-                <Text
-                  style={
-                    styles.sectionTitle
-                  }
-                >
-                  Bill of Quantities
-                </Text>
-
-                {milestone.boqItems
-                  .length === 0 ? (
-                  <Text
-                    style={
-                      styles.emptyText
-                    }
-                  >
-                    No BOQ items yet
-                  </Text>
-                ) : (
-                  milestone.boqItems.map(
-                    (
-                      item
-                    ) => (
-                      <View
-                        key={
-                          item.id
-                        }
-                        style={
-                          styles.boqCard
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.boqMaterial
-                          }
-                        >
-                          {
-                            item.material
-                          }
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.boqInfo
-                          }
-                        >
-                          {
-                            item.category
-                          }
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.boqInfo
-                          }
-                        >
-                          Qty:{" "}
-                          {
-                            item.quantity
-                          }{" "}
-                          {
-                            item.unit
-                          }
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.boqInfo
-                          }
-                        >
-                          Unit Price:{" "}
-                          {item.unitPrice.toLocaleString()}{" "}
-                          RWF
-                        </Text>
-
-                        <Text
-                          style={
-                            styles.totalText
-                          }
-                        >
-                          Total:{" "}
-                          {item.total.toLocaleString()}{" "}
-                          RWF
-                        </Text>
-                      </View>
-                    )
-                  )
-                )}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <SmallStat label="Total" value={milestones.length} />
+                <SmallStat label="Paid" value={completedCount} />
+                <SmallStat label="Allocated" value={`${totalPercentage}%`} />
               </View>
 
-              <TouchableOpacity
-                style={
-                  styles.primaryButton
-                }
-                onPress={() =>
-                  openBoqModal(
-                    milestone
-                  )
-                }
-              >
-                <Text
-                  style={
-                    styles.primaryText
-                  }
-                >
-                  + Create BOQ
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={
-                  styles.secondaryButton
-                }
-                onPress={() =>
-                  openPaymentModal(
-                    milestone
-                  )
-                }
-              >
-                <Text
-                  style={
-                    styles.secondaryText
-                  }
-                >
-                  Request Payment
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )
-        )}
-      </ScrollView>
-
-      {/* BOQ MODAL */}
-
-      <Modal
-        visible={showBoqModal}
-        transparent
-        animationType="slide"
-      >
-        <View style={styles.overlay}>
-          <View style={styles.modal}>
-            <View
-              style={
-                styles.modalHeader
-              }
-            >
-              <Text
-                style={
-                  styles.modalTitle
-                }
-              >
-                Add BOQ Item
-              </Text>
-
-              <TouchableOpacity
-                onPress={() =>
-                  setShowBoqModal(
-                    false
-                  )
-                }
-              >
-                <Text
-                  style={
-                    styles.close
-                  }
-                >
-                  ✕
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView>
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                Category
-              </Text>
-
-              <ScrollView horizontal>
-                {boqCategories.map(
-                  (cat) => (
-                    <TouchableOpacity
-                      key={cat}
-                      onPress={() =>
-                        setCategory(
-                          cat
-                        )
-                      }
-                      style={[
-                        styles.categoryBtn,
-                        category ===
-                          cat && {
-                          backgroundColor:
-                            "#0F766E",
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.categoryText,
-                          category ===
-                            cat && {
-                            color:
-                              "#fff",
-                          },
-                        ]}
-                      >
-                        {cat}
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                )}
-              </ScrollView>
-
-              <TextInput
-                placeholder="Material name"
-                value={material}
-                onChangeText={
-                  setMaterial
-                }
-                style={styles.input}
-              />
-
-              <TextInput
-                placeholder="Quantity"
-                keyboardType="numeric"
-                value={quantity}
-                onChangeText={
-                  setQuantity
-                }
-                style={styles.input}
-              />
-
-              <Text
-                style={
-                  styles.label
-                }
-              >
-                Unit
-              </Text>
-
-              <ScrollView horizontal>
-                {units.map((u) => (
-                  <TouchableOpacity
-                    key={u}
-                    onPress={() =>
-                      setUnit(u)
-                    }
-                    style={[
-                      styles.categoryBtn,
-                      unit === u && {
-                        backgroundColor:
-                          "#0F766E",
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.categoryText,
-                        unit === u && {
-                          color:
-                            "#fff",
-                        },
-                      ]}
-                    >
-                      {u}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              <TextInput
-                placeholder="Unit price (RWF)"
-                keyboardType="numeric"
-                value={unitPrice}
-                onChangeText={
-                  setUnitPrice
-                }
-                style={styles.input}
-              />
-
-              <View
-                style={
-                  styles.totalBox
-                }
-              >
-                <Text
-                  style={
-                    styles.totalLabel
-                  }
-                >
-                  Auto Calculated
-                  Total
-                </Text>
-
-                <Text
-                  style={
-                    styles.totalAmount
-                  }
-                >
-                  {calculatedTotal.toLocaleString()}{" "}
-                  RWF
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={
-                  styles.primaryButton
-                }
-                onPress={
-                  saveBoqItem
-                }
-              >
-                <Text
-                  style={
-                    styles.primaryText
-                  }
-                >
-                  Save BOQ Item
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* PAYMENT MODAL */}
-
-      <Modal
-        visible={showPaymentModal}
-        transparent
-        animationType="slide"
-      >
-        <View style={styles.overlay}>
-          <View style={styles.modal}>
-            <View
-              style={
-                styles.modalHeader
-              }
-            >
-              <Text
-                style={
-                  styles.modalTitle
-                }
-              >
-                Request Payment
-              </Text>
-
-              <TouchableOpacity
-                onPress={() =>
-                  setShowPaymentModal(
-                    false
-                  )
-                }
-              >
-                <Text
-                  style={
-                    styles.close
-                  }
-                >
-                  ✕
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={
-                styles.checkboxRow
-              }
-              onPress={() =>
-                setWorkComplete(
-                  !workComplete
-                )
-              }
-            >
-              <View
-                style={[
-                  styles.checkbox,
-                  workComplete &&
-                    styles.checkboxActive,
-                ]}
-              />
-
-              <Text
-                style={
-                  styles.checkboxText
-                }
-              >
-                Confirm work 100%
-                complete
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={
-                styles.primaryButton
-              }
-              onPress={
-                uploadCompletionPhoto
-              }
-            >
-              <Text
-                style={
-                  styles.primaryText
-                }
-              >
-                Upload Completion
-                Photos
-              </Text>
-            </TouchableOpacity>
-
-            <Text
-              style={
-                styles.photoCount
-              }
-            >
-              Uploaded Photos:{" "}
-              {
-                completionPhotos.length
-              }
-              /10
-            </Text>
-
-            <View
-              style={
-                styles.mediaGrid
-              }
-            >
-              {completionPhotos.map(
-                (photo, index) => (
-                  <Image
-                    key={index}
-                    source={{
-                      uri: photo,
-                    }}
-                    style={
-                      styles.photo
-                    }
+              <View style={styles.formCard}>
+                <Text style={styles.cardTitle}>New milestone</Text>
+                <TextInput
+                  placeholder="Milestone name"
+                  placeholderTextColor={COLORS.TEXT_LIGHT}
+                  value={name}
+                  onChangeText={setName}
+                  style={styles.input}
+                />
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TextInput
+                    placeholder={`Budget % max ${remainingPercentage}`}
+                    placeholderTextColor={COLORS.TEXT_LIGHT}
+                    keyboardType="numeric"
+                    value={budgetPercentage}
+                    onChangeText={setBudgetPercentage}
+                    style={[styles.input, { flex: 1 }]}
                   />
-                )
-              )}
-            </View>
+                  <TextInput
+                    placeholder="Days"
+                    placeholderTextColor={COLORS.TEXT_LIGHT}
+                    keyboardType="numeric"
+                    value={durationDays}
+                    onChangeText={setDurationDays}
+                    style={[styles.input, { flex: 1 }]}
+                  />
+                </View>
+                <TextInput
+                  placeholder="Acceptance criteria"
+                  placeholderTextColor={COLORS.TEXT_LIGHT}
+                  value={acceptanceCriteria}
+                  onChangeText={setAcceptanceCriteria}
+                  multiline
+                  style={[styles.input, { minHeight: 86, textAlignVertical: "top" }]}
+                />
+                <Pressable
+                  disabled={createMutation.isPending}
+                  onPress={() => createMutation.mutate()}
+                  style={[styles.primaryButton, createMutation.isPending && { opacity: 0.7 }]}
+                >
+                  <Ionicons name="add-circle-outline" size={19} color={COLORS.TEXT_WHITE} />
+                  <Text style={styles.primaryButtonText}>{createMutation.isPending ? "Creating..." : "Create milestone"}</Text>
+                </Pressable>
+              </View>
 
-            <TextInput
-              placeholder="Completion notes (optional)"
-              multiline
-              value={
-                completionNotes
-              }
-              onChangeText={
-                setCompletionNotes
-              }
-              style={
-                styles.multiline
-              }
-            />
-
-            <TouchableOpacity
-              style={
-                styles.submitButton
-              }
-              onPress={
-                submitForReview
-              }
-            >
-              <Text
-                style={
-                  styles.primaryText
-                }
-              >
-                Submit for Review
-              </Text>
-            </TouchableOpacity>
-          </View>
+              {milestonesQuery.isLoading ? <ActivityIndicator color={COLORS.PRIMARY} /> : null}
+              {milestones.length === 0 && !milestonesQuery.isLoading ? (
+                <Empty text="No milestones yet. Create the first milestone to start planning BOQ and progress." />
+              ) : null}
+              {milestones.map((milestone) => (
+                <MilestoneCard
+                  key={milestone.id}
+                  milestone={milestone}
+                  projectBudget={Number(activeProject?.budget || 0)}
+                  loading={updateStatusMutation.isPending}
+                  onSetActive={() => updateStatusMutation.mutate({ id: milestone.id, status: "active" })}
+                  onSubmitReview={() => updateStatusMutation.mutate({ id: milestone.id, status: "pending_supervisor" })}
+                />
+              ))}
+            </>
+          )}
         </View>
-      </Modal>
-    </>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F6F7FB",
-    padding: 16,
-    paddingTop: 44,
-  },
+function Header() {
+  return (
+    <View style={{ gap: 4 }}>
+      <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>
+        ENGINEER WORKFLOW
+      </Text>
+      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 28, fontWeight: "900" }}>
+        Milestones
+      </Text>
+      <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13, lineHeight: 19 }}>
+        Build a project plan, allocate budget percentage, and submit completed stages for review.
+      </Text>
+    </View>
+  );
+}
 
-  pageTitle: {
-    fontSize: 26,
-    fontWeight: "900",
-    marginBottom: 18,
-    color: "#111827",
-  },
+function ProjectSelector({
+  projects,
+  activeProjectId,
+  onSelect,
+}: {
+  projects: EngineerProject[];
+  activeProjectId: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+      {projects.map((project) => {
+        const active = project.id === activeProjectId;
+        return (
+          <Pressable
+            key={project.id}
+            onPress={() => onSelect(project.id)}
+            style={{
+              backgroundColor: active ? COLORS.PRIMARY : COLORS.SURFACE,
+              borderColor: active ? COLORS.PRIMARY : COLORS.BORDER_LIGHT,
+              borderRadius: 10,
+              borderWidth: 1,
+              maxWidth: 230,
+              padding: 12,
+            }}
+          >
+            <Text numberOfLines={1} style={{ color: active ? COLORS.TEXT_WHITE : COLORS.TEXT_PRIMARY, fontWeight: "900" }}>
+              {project.name}
+            </Text>
+            <Text numberOfLines={1} style={{ color: active ? COLORS.TEXT_WHITE : COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 3 }}>
+              {project.status}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
 
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
+function SmallStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <View style={styles.smallStat}>
+      <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 10, fontWeight: "900" }}>{label.toUpperCase()}</Text>
+      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900", marginTop: 4 }}>{value}</Text>
+    </View>
+  );
+}
+
+function MilestoneCard({
+  milestone,
+  projectBudget,
+  loading,
+  onSetActive,
+  onSubmitReview,
+}: {
+  milestone: EngineerMilestone;
+  projectBudget: number;
+  loading: boolean;
+  onSetActive: () => void;
+  onSubmitReview: () => void;
+}) {
+  const percentage = Number(milestone.budgetPercentage || 0);
+  const amount = Math.round((projectBudget * percentage) / 100);
+  const color = statusColor(milestone.status);
+
+  return (
+    <View style={styles.milestoneCard}>
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        <View style={[styles.statusBar, { backgroundColor: color }]} />
+        <View style={{ flex: 1 }}>
+          <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
+            <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontSize: 17, fontWeight: "900" }}>{milestone.name}</Text>
+            <StatusPill value={milestone.status} />
+          </View>
+          <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 5 }}>
+            {milestone.description || milestone.acceptanceCriteria || "No description provided."}
+          </Text>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+        <Mini label="Budget" value={`${percentage}%`} />
+        <Mini label="Value" value={`${amount.toLocaleString()} RWF`} />
+        <Mini label="BOQ" value={milestone._count?.boqItems || 0} />
+      </View>
+
+      <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+        {milestone.status === "pending" ? (
+          <Pressable disabled={loading} onPress={onSetActive} style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>Mark active</Text>
+          </Pressable>
+        ) : null}
+        {["active", "revision_required"].includes(milestone.status) ? (
+          <Pressable disabled={loading} onPress={onSubmitReview} style={styles.primaryButton}>
+            <Ionicons name="send-outline" size={17} color={COLORS.TEXT_WHITE} />
+            <Text style={styles.primaryButtonText}>Send for review</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function Mini({ label, value }: { label: string; value: string | number }) {
+  return (
+    <View style={styles.mini}>
+      <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 9, fontWeight: "900" }}>{label}</Text>
+      <Text numberOfLines={1} style={{ color: COLORS.TEXT_PRIMARY, fontSize: 11, fontWeight: "900", marginTop: 3 }}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function StatusPill({ value }: { value: string }) {
+  return (
+    <View style={{ backgroundColor: `${statusColor(value)}22`, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 5 }}>
+      <Text style={{ color: statusColor(value), fontSize: 9, fontWeight: "900" }}>
+        {value.replace(/_/g, " ").toUpperCase()}
+      </Text>
+    </View>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <View style={styles.empty}>
+      <Ionicons name="flag-outline" size={38} color={COLORS.TEXT_LIGHT} />
+      <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20, marginTop: 10, textAlign: "center" }}>{text}</Text>
+    </View>
+  );
+}
+
+const styles = {
+  darkPanel: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.INK,
+    borderRadius: 12,
+    flexDirection: "row" as const,
+    gap: 12,
     padding: 18,
-    marginBottom: 18,
   },
-
-  projectImage: {
-    width: "100%",
-    height: 180,
-    borderRadius: 18,
-    marginBottom: 14,
+  darkEyebrow: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 10,
+    fontWeight: "900" as const,
   },
-
-  projectName: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#111827",
-    marginBottom: 6,
+  darkTitle: {
+    color: COLORS.TEXT_WHITE,
+    fontSize: 23,
+    fontWeight: "900" as const,
+    marginTop: 4,
   },
-
-  projectInfo: {
-    color: "#64748B",
-    marginBottom: 4,
-  },
-
-  headerRow: {
-    flexDirection: "row",
-    justifyContent:
-      "space-between",
-    alignItems: "center",
-    marginTop: 18,
-  },
-
-  milestoneTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  subText: {
-    color: "#64748B",
-    marginTop: 6,
-  },
-
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 100,
-  },
-
-  statusText: {
-    color: "#fff",
-    fontWeight: "700",
+  darkBody: {
+    color: "#CBD5E1",
     fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
   },
-
-  section: {
-    marginTop: 18,
+  darkIcon: {
+    alignItems: "center" as const,
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderRadius: 12,
+    height: 52,
+    justifyContent: "center" as const,
+    width: 52,
   },
-
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 12,
-    color: "#111827",
-  },
-
-  emptyText: {
-    color: "#64748B",
-  },
-
-  boqCard: {
-    backgroundColor: "#F8FAFC",
-    padding: 14,
-    borderRadius: 16,
-    marginBottom: 10,
-  },
-
-  boqMaterial: {
-    fontWeight: "800",
-    marginBottom: 6,
-    color: "#111827",
-  },
-
-  boqInfo: {
-    color: "#64748B",
-    marginBottom: 3,
-  },
-
-  totalText: {
-    marginTop: 8,
-    color: "#0F766E",
-    fontWeight: "800",
-  },
-
-  primaryButton: {
-    backgroundColor: "#0F766E",
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    marginTop: 14,
-  },
-
-  submitButton: {
-    backgroundColor: "#7C3AED",
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    marginTop: 14,
-  },
-
-  primaryText: {
-    color: "#fff",
-    fontWeight: "800",
-  },
-
-  secondaryButton: {
-    borderWidth: 1.5,
-    borderColor: "#0F766E",
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    marginTop: 12,
-  },
-
-  secondaryText: {
-    color: "#0F766E",
-    fontWeight: "800",
-  },
-
-  overlay: {
+  smallStat: {
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 10,
+    borderWidth: 1,
     flex: 1,
-    backgroundColor:
-      "rgba(0,0,0,0.55)",
-    justifyContent: "flex-end",
+    padding: 12,
   },
-
-  modal: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 20,
-    maxHeight: "92%",
+  formCard: {
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+    padding: 16,
   },
-
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent:
-      "space-between",
-    alignItems: "center",
-    marginBottom: 18,
+  cardTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 17,
+    fontWeight: "900" as const,
   },
-
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: "#0F766E",
-  },
-
-  close: {
-    fontSize: 20,
-    fontWeight: "900",
-  },
-
-  label: {
-    marginBottom: 10,
-    fontWeight: "700",
-    color: "#475569",
-  },
-
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.MUTED,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 14,
+    color: COLORS.TEXT_PRIMARY,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
-
-  multiline: {
-    backgroundColor: "#fff",
+  primaryButton: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 8,
+    flex: 1,
+    flexDirection: "row" as const,
+    gap: 8,
+    justifyContent: "center" as const,
+    paddingVertical: 13,
+  },
+  primaryButtonText: {
+    color: COLORS.TEXT_WHITE,
+    fontWeight: "900" as const,
+  },
+  secondaryButton: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.MUTED,
+    borderRadius: 8,
+    flex: 1,
+    paddingVertical: 13,
+  },
+  secondaryButtonText: {
+    color: COLORS.PRIMARY_DARK,
+    fontWeight: "900" as const,
+  },
+  milestoneCard: {
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 14,
-    padding: 14,
-    minHeight: 120,
-    textAlignVertical: "top",
-    marginTop: 14,
+    padding: 15,
   },
-
-  categoryBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 100,
-    backgroundColor: "#E2E8F0",
-    marginRight: 10,
-    marginBottom: 16,
+  statusBar: {
+    borderRadius: 999,
+    width: 5,
   },
-
-  categoryText: {
-    fontWeight: "700",
-    color: "#334155",
+  mini: {
+    backgroundColor: COLORS.MUTED,
+    borderRadius: 8,
+    flex: 1,
+    padding: 9,
   },
-
-  totalBox: {
-    backgroundColor: "#F0FDFA",
-    borderRadius: 16,
-    padding: 18,
-    marginTop: 8,
+  empty: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 28,
   },
-
-  totalLabel: {
-    color: "#64748B",
-    marginBottom: 6,
-  },
-
-  totalAmount: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#0F766E",
-  },
-
-  checkboxRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: "#CBD5E1",
-    marginRight: 12,
-  },
-
-  checkboxActive: {
-    backgroundColor: "#0F766E",
-    borderColor: "#0F766E",
-  },
-
-  checkboxText: {
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  photoCount: {
-    marginTop: 12,
-    color: "#64748B",
-    fontWeight: "700",
-  },
-
-  mediaGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginTop: 14,
-  },
-
-  photo: {
-    width: "48%",
-    height: 110,
-    borderRadius: 16,
-    marginBottom: 12,
-  },
-});
+};

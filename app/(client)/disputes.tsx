@@ -1,7 +1,6 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  Alert,
-  Dimensions,
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -12,143 +11,139 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/api/api";
+import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { ClientTopBar } from "@/components/client/client-top-bar";
-import { useSampleFlowStore, MockDispute } from "@/store/sampleFlow.store";
 import { formatRWF } from "@/utils/projectFunds";
 
-const { width } = Dimensions.get("window");
+type DisputeStatus =
+  | "open"
+  | "under_review"
+  | "resolved_full_payment"
+  | "resolved_partial"
+  | "resolved_refund"
+  | "resolved_termination"
+  | "closed";
+
+type ClientDispute = {
+  id: string;
+  projectId: string;
+  milestoneId?: string | null;
+  category: "quality" | "timeline" | "cost" | "other";
+  description: string;
+  status: DisputeStatus;
+  amountInDispute: string | number;
+  resolution?: any;
+  resolvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  project?: { id: string; name?: string | null };
+  milestone?: { id: string; name?: string | null };
+  raisedBy?: { name?: string | null; role?: string | null };
+  evidence?: {
+    id: string;
+    cloudinaryUrl: string;
+    description?: string | null;
+    createdAt: string;
+    uploadedBy?: { name?: string | null; role?: string | null };
+  }[];
+};
+
+const isResolved = (status: DisputeStatus) =>
+  status.startsWith("resolved") || status === "closed";
+
+const statusLabel = (status: string) => status.replace(/_/g, " ").toUpperCase();
 
 export default function DisputesScreen() {
   const params = useLocalSearchParams<{ disputeId?: string }>();
-  const { disputes, milestones, updateMilestoneStatus, bankAccounts } = useSampleFlowStore();
   const [selectedDisputeId, setSelectedDisputeId] = useState(params.disputeId || "");
 
-  // If no specific dispute selected, pick the first one
-  const activeDispute = disputes.find(d => d.id === selectedDisputeId) || disputes[0];
+  const disputesQuery = useQuery({
+    queryKey: ["client-disputes"],
+    queryFn: async () => (await api.get<ClientDispute[]>(ENDPOINTS.DISPUTES.LIST)).data,
+  });
 
-  // Actions to simulate mediator/admin decision in prototype
-  const handleSimulateResolution = (decision: "refund" | "release" | "split") => {
-    if (!activeDispute) return;
+  const disputes = disputesQuery.data || [];
+  const activeDispute = useMemo(
+    () => disputes.find((item) => item.id === selectedDisputeId) || disputes[0],
+    [disputes, selectedDisputeId],
+  );
 
-    let message = "";
-    let statusText = "resolved";
-    let desc = "";
-
-    if (decision === "refund") {
-      message = "Mediator ruled 100% refund of locked funds back to Client's escrow account.";
-      desc = "Arbitrator concluded that engineer's work did not meet engineering building codes. Locked funds refunded to Client.";
-    } else if (decision === "release") {
-      message = "Mediator ruled 100% release of locked funds to the Engineer.";
-      desc = "Arbitrator concluded that milestone deliverables were successfully built according to project specs. Escrow released to Engineer.";
-    } else {
-      message = "Mediator ruled 50/50 split of locked funds.";
-      desc = "Arbitrator issued split proposal: 50% released to engineer for masonry work, 50% returned to client to cover plaster corrections.";
-    }
-
-    // Add event to timeline
-    const updatedTimeline = [
-      ...activeDispute.timeline,
-      {
-        date: new Date().toISOString(),
-        title: "Mediation Decision Issued",
-        desc
-      }
-    ];
-
-    useSampleFlowStore.setState(state => ({
-      disputes: state.disputes.map(d => 
-        d.id === activeDispute.id 
-          ? { ...d, status: "resolved" as const, timeline: updatedTimeline } 
-          : d
-      ),
-      milestones: state.milestones.map(ms => 
-        ms.id === activeDispute.milestoneId 
-          ? { ...ms, status: decision === "refund" ? "revision_required" : "completed" } 
-          : ms
-      )
-    }));
-
-    Alert.alert("Decision Rendered", message);
-  };
-
-  const handleAppeal = () => {
-    if (!activeDispute) return;
-
-    // Check if already appealed
-    const alreadyAppealed = activeDispute.timeline.some(t => t.title === "Appeal Lodged");
-    if (alreadyAppealed) {
-      Alert.alert("Appeal Limit", "You have already appealed this decision. The appeal is under final review.");
-      return;
-    }
-
-    const updatedTimeline = [
-      ...activeDispute.timeline,
-      {
-        date: new Date().toISOString(),
-        title: "Appeal Lodged",
-        desc: "Client appealed the mediator's resolution decision. Sent to the IER High Court Arbitration Board."
-      }
-    ];
-
-    useSampleFlowStore.setState(state => ({
-      disputes: state.disputes.map(d => 
-        d.id === activeDispute.id 
-          ? { ...d, timeline: updatedTimeline } 
-          : d
-      )
-    }));
-
-    Alert.alert("Appeal Registered", "Your appeal has been logged. Final review takes up to 7 days.");
-  };
+  const timeline = activeDispute
+    ? [
+        {
+          date: activeDispute.createdAt,
+          title: "Dispute Submitted",
+          desc: `${activeDispute.raisedBy?.name || "Project member"} raised a ${activeDispute.category} dispute.`,
+        },
+        ...(activeDispute.status === "under_review"
+          ? [
+              {
+                date: activeDispute.updatedAt,
+                title: "Under Review",
+                desc: "The dispute is being reviewed by the assigned resolution team.",
+              },
+            ]
+          : []),
+        ...(isResolved(activeDispute.status)
+          ? [
+              {
+                date: activeDispute.resolvedAt || activeDispute.updatedAt,
+                title: "Resolution Issued",
+                desc:
+                  typeof activeDispute.resolution === "string"
+                    ? activeDispute.resolution
+                    : "A resolution has been recorded for this dispute.",
+              },
+            ]
+          : []),
+      ]
+    : [];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-        
-        {/* Header */}
         <View style={{ paddingHorizontal: 20 }}>
           <ClientTopBar
             title="Dispute Center"
-            subtitle="Track and resolve milestone conflicts mediated by certified IER engineers."
-            back={true}
+            subtitle="Track milestone conflicts and resolution status."
+            back
           />
         </View>
 
-        {disputes.length === 0 ? (
+        {disputesQuery.isLoading ? (
+          <View style={{ alignItems: "center", justifyContent: "center", padding: 48 }}>
+            <ActivityIndicator color={COLORS.PRIMARY} size="large" />
+            <Text style={{ color: COLORS.TEXT_SECONDARY, marginTop: 12 }}>Loading disputes...</Text>
+          </View>
+        ) : disputes.length === 0 ? (
           <View style={{ padding: 40, alignItems: "center", justifyContent: "center" }}>
             <Ionicons name="alert-circle-outline" size={48} color={COLORS.TEXT_LIGHT} />
             <Text style={{ color: COLORS.TEXT_SECONDARY, marginTop: 12, textAlign: "center", lineHeight: 20 }}>
-              No active disputes. Disputes are initiated when there&apos;s a conflict on milestone payment or building quality.
+              No active disputes. Disputes are initiated from milestones when there is a conflict on payment or building quality.
             </Text>
-            <Pressable 
+            <Pressable
               onPress={() => router.push("/(client)/milestones" as never)}
-              style={{
-                marginTop: 20,
-                backgroundColor: COLORS.PRIMARY,
-                paddingHorizontal: 20,
-                paddingVertical: 12,
-                borderRadius: 10
-              }}
+              style={styles.primaryButton}
             >
               <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "bold" }}>View Milestones</Text>
             </Pressable>
           </View>
-        ) : (
+        ) : activeDispute ? (
           <View style={{ gap: 20 }}>
-            
-            {/* Dispute List Selector */}
-            <ScrollView 
-              horizontal 
+            <ScrollView
+              horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}
             >
-              {disputes.map(d => (
+              {disputes.map((item) => (
                 <Pressable
-                  key={d.id}
-                  onPress={() => setSelectedDisputeId(d.id)}
+                  key={item.id}
+                  onPress={() => setSelectedDisputeId(item.id)}
                   style={{
-                    backgroundColor: activeDispute.id === d.id ? COLORS.PRIMARY : COLORS.SURFACE,
+                    backgroundColor: activeDispute.id === item.id ? COLORS.PRIMARY : COLORS.SURFACE,
                     borderColor: COLORS.BORDER_LIGHT,
                     borderWidth: 1,
                     borderRadius: 20,
@@ -156,28 +151,21 @@ export default function DisputesScreen() {
                     paddingVertical: 10,
                   }}
                 >
-                  <Text style={{ 
-                    color: activeDispute.id === d.id ? COLORS.TEXT_WHITE : COLORS.TEXT_PRIMARY, 
-                    fontWeight: "bold",
-                    fontSize: 12
-                  }}>
-                    {d.id} - {d.projectName}
+                  <Text
+                    style={{
+                      color: activeDispute.id === item.id ? COLORS.TEXT_WHITE : COLORS.TEXT_PRIMARY,
+                      fontWeight: "bold",
+                      fontSize: 12,
+                    }}
+                  >
+                    {item.project?.name || "Project"} - {statusLabel(item.status)}
                   </Text>
                 </Pressable>
               ))}
             </ScrollView>
 
-            {/* Dispute details panel */}
             <View style={{ paddingHorizontal: 20, gap: 16 }}>
-              
-              {/* Main Card */}
-              <View style={{
-                backgroundColor: COLORS.SURFACE,
-                borderColor: COLORS.BORDER_LIGHT,
-                borderWidth: 1,
-                borderRadius: 14,
-                padding: 16
-              }}>
+              <View style={styles.card}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                   <Text style={{ fontSize: 11, color: COLORS.PRIMARY, fontWeight: "900" }}>
                     DISPUTE ID: {activeDispute.id}
@@ -186,138 +174,84 @@ export default function DisputesScreen() {
                 </View>
 
                 <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900", marginTop: 8 }}>
-                  Conflict: {activeDispute.milestoneName}
+                  Conflict: {activeDispute.milestone?.name || "Project issue"}
                 </Text>
                 <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13, marginTop: 4 }}>
-                  Project: <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "bold" }}>{activeDispute.projectName}</Text>
+                  Project:{" "}
+                  <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "bold" }}>
+                    {activeDispute.project?.name || "Project"}
+                  </Text>
+                </Text>
+                <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13, lineHeight: 20, marginTop: 10 }}>
+                  {activeDispute.description}
                 </Text>
 
-                <View style={{ 
-                  backgroundColor: COLORS.MUTED, 
-                  borderRadius: 10, 
-                  padding: 12, 
-                  marginTop: 12,
-                  flexDirection: "row",
-                  justifyContent: "space-between" 
-                }}>
+                <View style={styles.summaryRow}>
                   <View>
-                    <Text style={{ fontSize: 11, color: COLORS.TEXT_LIGHT, fontWeight: "800" }}>LOCKED ESCROW BALANCE</Text>
+                    <Text style={styles.summaryLabel}>AMOUNT IN DISPUTE</Text>
                     <Text style={{ fontSize: 16, fontWeight: "900", color: COLORS.ERROR, marginTop: 2 }}>
-                      {formatRWF(activeDispute.lockedAmount)}
+                      {formatRWF(Number(activeDispute.amountInDispute || 0))}
                     </Text>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
-                    <Text style={{ fontSize: 11, color: COLORS.TEXT_LIGHT, fontWeight: "800" }}>CATEGORY</Text>
+                    <Text style={styles.summaryLabel}>CATEGORY</Text>
                     <Text style={{ fontSize: 14, fontWeight: "bold", color: COLORS.TEXT_PRIMARY, marginTop: 2 }}>
-                      {activeDispute.category}
+                      {activeDispute.category.toUpperCase()}
                     </Text>
                   </View>
                 </View>
               </View>
 
-              {/* Arbitrator Info */}
-              <View style={{
-                backgroundColor: COLORS.SURFACE,
-                borderColor: COLORS.BORDER_LIGHT,
-                borderWidth: 1,
-                borderRadius: 14,
-                padding: 16
-              }}>
-                <Text style={styles.sectionTitle}>Assigned Mediator</Text>
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Resolution Owner</Text>
                 <View style={{ flexDirection: "row", gap: 12, alignItems: "center", marginTop: 10 }}>
-                  <View style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 22,
-                    backgroundColor: COLORS.PRIMARY_LIGHT,
-                    alignItems: "center",
-                    justifyContent: "center"
-                  }}>
+                  <View style={styles.avatar}>
                     <Ionicons name="person-circle-outline" size={24} color={COLORS.PRIMARY_DARK} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "bold", fontSize: 14 }}>
-                      {activeDispute.mediatorName}
+                      IER Resolution Team
                     </Text>
                     <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12 }}>
-                      Institute of Engineers Rwanda (IER)
+                      Status: {statusLabel(activeDispute.status)}
                     </Text>
                   </View>
                 </View>
-                
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 14, paddingTop: 10, borderTopColor: COLORS.BORDER_LIGHT, borderTopWidth: 1 }}>
-                  <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12 }}>Resolution ETA</Text>
-                  <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "bold", fontSize: 12 }}>
-                    {activeDispute.resolutionEta} (Average)
-                  </Text>
-                </View>
               </View>
 
-              {/* Evidence Section */}
-              {activeDispute.evidence.length > 0 && (
-                <View style={{
-                  backgroundColor: COLORS.SURFACE,
-                  borderColor: COLORS.BORDER_LIGHT,
-                  borderWidth: 1,
-                  borderRadius: 14,
-                  padding: 16
-                }}>
-                  <Text style={styles.sectionTitle}>Uploaded Evidence Files</Text>
+              {activeDispute.evidence && activeDispute.evidence.length > 0 ? (
+                <View style={styles.card}>
+                  <Text style={styles.sectionTitle}>Evidence Files</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, marginTop: 10 }}>
-                    {activeDispute.evidence.map((url, idx) => (
-                      <View key={idx} style={{ position: "relative" }}>
-                        <Image 
-                          source={{ uri: url }} 
-                          style={{ width: 120, height: 90, borderRadius: 8, backgroundColor: COLORS.MUTED }} 
+                    {activeDispute.evidence.map((item, idx) => (
+                      <View key={item.id} style={{ position: "relative" }}>
+                        <Image
+                          source={{ uri: item.cloudinaryUrl }}
+                          style={{ width: 120, height: 90, borderRadius: 8, backgroundColor: COLORS.MUTED }}
                         />
-                        <View style={{ 
-                          position: "absolute", 
-                          bottom: 4, 
-                          left: 4, 
-                          backgroundColor: "rgba(0,0,0,0.6)", 
-                          borderRadius: 4, 
-                          paddingHorizontal: 6, 
-                          paddingVertical: 2 
-                        }}>
-                          <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 9 }}>Proof #{idx+1}</Text>
+                        <View style={styles.photoBadge}>
+                          <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 9 }}>Proof #{idx + 1}</Text>
                         </View>
                       </View>
                     ))}
                   </ScrollView>
                 </View>
-              )}
+              ) : null}
 
-              {/* Timeline of events */}
-              <View style={{
-                backgroundColor: COLORS.SURFACE,
-                borderColor: COLORS.BORDER_LIGHT,
-                borderWidth: 1,
-                borderRadius: 14,
-                padding: 16
-              }}>
+              <View style={styles.card}>
                 <Text style={styles.sectionTitle}>Resolution Timeline</Text>
-                
                 <View style={{ gap: 16, marginTop: 14 }}>
-                  {activeDispute.timeline.map((event, idx) => (
-                    <View key={idx} style={{ flexDirection: "row", gap: 12 }}>
+                  {timeline.map((event, idx) => (
+                    <View key={`${event.title}-${idx}`} style={{ flexDirection: "row", gap: 12 }}>
                       <View style={{ alignItems: "center" }}>
-                        <View style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 11,
-                          backgroundColor: idx === 0 ? COLORS.PRIMARY_LIGHT : COLORS.MUTED,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          borderColor: COLORS.BORDER,
-                          borderWidth: 1
-                        }}>
-                          <Ionicons 
-                            name={idx === 0 ? "checkmark" : "time-outline"} 
-                            size={12} 
-                            color={idx === 0 ? COLORS.PRIMARY : COLORS.TEXT_LIGHT} 
+                        <View style={styles.timelineDot}>
+                          <Ionicons
+                            name={idx === 0 ? "checkmark" : "time-outline"}
+                            size={12}
+                            color={idx === 0 ? COLORS.PRIMARY : COLORS.TEXT_LIGHT}
                           />
                         </View>
-                        {idx < activeDispute.timeline.length - 1 && (
+                        {idx < timeline.length - 1 && (
                           <View style={{ width: 1, flex: 1, backgroundColor: COLORS.BORDER, marginVertical: 4 }} />
                         )}
                       </View>
@@ -326,7 +260,8 @@ export default function DisputesScreen() {
                           {event.title}
                         </Text>
                         <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11, marginTop: 2 }}>
-                          {new Date(event.date).toLocaleDateString()} at {new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(event.date).toLocaleDateString()} at{" "}
+                          {new Date(event.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                         </Text>
                         <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 4, lineHeight: 18 }}>
                           {event.desc}
@@ -336,130 +271,98 @@ export default function DisputesScreen() {
                   ))}
                 </View>
               </View>
-
-              {/* Prototype Helper: Simulate Decision */}
-              {activeDispute.status === "open" && (
-                <View style={{
-                  backgroundColor: COLORS.MUTED,
-                  borderColor: COLORS.BORDER_LIGHT,
-                  borderWidth: 1,
-                  borderRadius: 14,
-                  padding: 16,
-                  gap: 10
-                }}>
-                  <Text style={{ fontSize: 12, fontWeight: "bold", color: COLORS.TEXT_PRIMARY, textAlign: "center" }}>
-                    PROTOTYPE SIMULATOR: ISSUE MEDIATION RULING
-                  </Text>
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    <Pressable
-                      onPress={() => handleSimulateResolution("refund")}
-                      style={{
-                        flex: 1,
-                        backgroundColor: COLORS.PRIMARY,
-                        paddingVertical: 8,
-                        borderRadius: 8,
-                        alignItems: "center"
-                      }}
-                    >
-                      <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 10, fontWeight: "bold" }}>Refund Client</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => handleSimulateResolution("release")}
-                      style={{
-                        flex: 1,
-                        backgroundColor: COLORS.PRIMARY,
-                        paddingVertical: 8,
-                        borderRadius: 8,
-                        alignItems: "center"
-                      }}
-                    >
-                      <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 10, fontWeight: "bold" }}>Release Eng</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => handleSimulateResolution("split")}
-                      style={{
-                        flex: 1,
-                        backgroundColor: COLORS.PRIMARY,
-                        paddingVertical: 8,
-                        borderRadius: 8,
-                        alignItems: "center"
-                      }}
-                    >
-                      <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 10, fontWeight: "bold" }}>Split 50/50</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              )}
-
-              {/* Appeal / Action Card */}
-              {activeDispute.status === "resolved" && (
-                <View style={{ gap: 10 }}>
-                  <Pressable
-                    onPress={() => {
-                      Alert.alert("Thank you", "Decision accepted. Dispute closed.");
-                      router.push("/(client)");
-                    }}
-                    style={{
-                      backgroundColor: COLORS.PRIMARY,
-                      paddingVertical: 14,
-                      borderRadius: 10,
-                      alignItems: "center"
-                    }}
-                  >
-                    <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "bold" }}>Accept Decision</Text>
-                  </Pressable>
-                  
-                  <Pressable
-                    onPress={handleAppeal}
-                    style={{
-                      borderColor: COLORS.PRIMARY,
-                      borderWidth: 1,
-                      paddingVertical: 14,
-                      borderRadius: 10,
-                      alignItems: "center"
-                    }}
-                  >
-                    <Text style={{ color: COLORS.PRIMARY, fontWeight: "bold" }}>Appeal Ruling (Once)</Text>
-                  </Pressable>
-                </View>
-              )}
-
             </View>
-
           </View>
-        )}
-
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function StatusBadge({ status }: { status: MockDispute["status"] }) {
-  const isResolved = status === "resolved";
+function StatusBadge({ status }: { status: DisputeStatus }) {
+  const resolved = isResolved(status);
   return (
-    <View style={{ 
-      backgroundColor: isResolved ? "#DCFCE7" : "#FEE2E2", 
-      borderRadius: 8, 
-      paddingHorizontal: 8, 
-      paddingVertical: 4 
-    }}>
-      <Text style={{ 
-        color: isResolved ? COLORS.SUCCESS : COLORS.ERROR, 
-        fontSize: 10, 
-        fontWeight: "900" 
-      }}>
-        {status.toUpperCase()}
+    <View
+      style={{
+        backgroundColor: resolved ? "#DCFCE7" : status === "under_review" ? "#FEF3C7" : "#FEE2E2",
+        borderRadius: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+      }}
+    >
+      <Text
+        style={{
+          color: resolved ? COLORS.SUCCESS : status === "under_review" ? COLORS.WARNING : COLORS.ERROR,
+          fontSize: 10,
+          fontWeight: "900",
+        }}
+      >
+        {statusLabel(status)}
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  primaryButton: {
+    marginTop: 20,
+    backgroundColor: COLORS.PRIMARY,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  card: {
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 16,
+  },
   sectionTitle: {
     fontSize: 14,
     fontWeight: "900",
     color: COLORS.TEXT_PRIMARY,
     textTransform: "uppercase",
-    letterSpacing: 0.5
-  }
+    letterSpacing: 0.5,
+  },
+  summaryRow: {
+    backgroundColor: COLORS.MUTED,
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: COLORS.TEXT_LIGHT,
+    fontWeight: "800",
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoBadge: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  timelineDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    alignItems: "center",
+    justifyContent: "center",
+    borderColor: COLORS.BORDER,
+    borderWidth: 1,
+  },
 });

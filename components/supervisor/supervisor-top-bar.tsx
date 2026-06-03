@@ -27,7 +27,6 @@ export function SupervisorTopBar({ title, subtitle }: SupervisorTopBarProps) {
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
           <TopButton icon="notifications-outline" onPress={() => router.push("/(supervisor)/notifications")} />
-          <TopButton icon="person-circle-outline" onPress={() => router.push("/(supervisor)/profile")} />
           <TopButton icon="settings-outline" onPress={() => router.push("/(supervisor)/settings")} />
         </View>
       </View>
