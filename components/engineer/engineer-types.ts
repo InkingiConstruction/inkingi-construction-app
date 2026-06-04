@@ -46,6 +46,7 @@ export type EngineerMilestone = {
   durationDays?: number | null;
   acceptanceCriteria?: string | null;
   project?: EngineerProject;
+  boqItems?: EngineerBoqItem[];
   _count?: {
     boqItems?: number;
     inspections?: number;
@@ -57,6 +58,7 @@ export type EngineerMilestone = {
 export type EngineerBoqItem = {
   id: string;
   milestoneId: string;
+  supplierInventoryItemId?: string | null;
   category: string;
   name: string;
   quantity: string | number;
@@ -65,6 +67,24 @@ export type EngineerBoqItem = {
   totalPrice: string | number;
   notes?: string | null;
   milestone?: EngineerMilestone;
+  supplierInventoryItem?: {
+    id: string;
+    supplierId: string;
+    supplier?: EngineerUser;
+  } | null;
+};
+
+export type EngineerSupplierInventoryItem = {
+  id: string;
+  supplierId: string;
+  category: string;
+  name: string;
+  unit: string;
+  unitPrice: string | number;
+  deliveryFee?: string | number | null;
+  available: boolean;
+  notes?: string | null;
+  supplier?: EngineerUser;
 };
 
 export type EngineerRfq = {

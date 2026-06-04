@@ -51,3 +51,20 @@ export type SupplierDelivery = {
   createdAt: string;
   purchaseOrder?: SupplierPurchaseOrder;
 };
+
+export type SupplierInventoryItem = {
+  id: string;
+  supplierId: string;
+  category: string;
+  name: string;
+  unit: string;
+  unitPrice: string | number;
+  deliveryFee?: string | number | null;
+  available: boolean;
+  notes?: string | null;
+  supplier?: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+  };
+};

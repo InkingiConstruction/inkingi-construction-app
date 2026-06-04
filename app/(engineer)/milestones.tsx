@@ -24,7 +24,6 @@ export default function EngineerMilestones() {
   const params = useLocalSearchParams<{ projectId?: string }>();
   const [selectedProjectId, setSelectedProjectId] = useState(params.projectId || "");
   const [name, setName] = useState("");
-  const [budgetPercentage, setBudgetPercentage] = useState("");
   const [durationDays, setDurationDays] = useState("");
   const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
   const [editingMilestoneId, setEditingMilestoneId] = useState("");
@@ -51,21 +50,18 @@ export default function EngineerMilestones() {
   });
 
   const milestones = milestonesQuery.data || [];
-  const totalPercentage = milestones.reduce((sum, milestone) => sum + Number(milestone.budgetPercentage || 0), 0);
-  const remainingPercentage = Math.max(0, 100 - totalPercentage);
   const completedCount = milestones.filter((milestone) => milestone.status === "paid").length;
 
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!activeProjectId) throw new Error("Select a project first.");
-      if (!name.trim() || !budgetPercentage.trim()) {
-        throw new Error("Milestone name and budget percentage are required.");
+      if (!name.trim()) {
+        throw new Error("Milestone name is required.");
       }
 
       return api.post(ENDPOINTS.MILESTONES.LIST, {
         projectId: activeProjectId,
         name: name.trim(),
-        budgetPercentage: Number(budgetPercentage),
         durationDays: durationDays.trim() ? Number(durationDays) : undefined,
         acceptanceCriteria: acceptanceCriteria.trim() || undefined,
         order: milestones.length + 1,
@@ -83,7 +79,6 @@ export default function EngineerMilestones() {
   const resetForm = () => {
     setEditingMilestoneId("");
     setName("");
-    setBudgetPercentage("");
     setDurationDays("");
     setAcceptanceCriteria("");
   };
@@ -91,13 +86,12 @@ export default function EngineerMilestones() {
   const updateDetailsMutation = useMutation({
     mutationFn: async () => {
       if (!editingMilestoneId) throw new Error("Select a milestone to edit.");
-      if (!name.trim() || !budgetPercentage.trim()) {
-        throw new Error("Milestone name and budget percentage are required.");
+      if (!name.trim()) {
+        throw new Error("Milestone name is required.");
       }
 
       return api.put(ENDPOINTS.MILESTONES.UPDATE(editingMilestoneId), {
         name: name.trim(),
-        budgetPercentage: Number(budgetPercentage),
         durationDays: durationDays.trim() ? Number(durationDays) : undefined,
         acceptanceCriteria: acceptanceCriteria.trim() || undefined,
       });
@@ -127,7 +121,6 @@ export default function EngineerMilestones() {
   const startEdit = (milestone: EngineerMilestone) => {
     setEditingMilestoneId(milestone.id);
     setName(milestone.name);
-    setBudgetPercentage(String(milestone.budgetPercentage || ""));
     setDurationDays(milestone.durationDays ? String(milestone.durationDays) : "");
     setAcceptanceCriteria(milestone.acceptanceCriteria || milestone.description || "");
   };
@@ -163,7 +156,7 @@ export default function EngineerMilestones() {
                   <Text style={styles.darkEyebrow}>PROJECT PLAN</Text>
                   <Text style={styles.darkTitle}>{activeProject?.name || "Project"}</Text>
                   <Text style={styles.darkBody}>
-                    {milestones.length} milestone{milestones.length === 1 ? "" : "s"} • {remainingPercentage}% budget remaining
+                    {milestones.length} milestone{milestones.length === 1 ? "" : "s"} • Budget comes from BOQ totals
                   </Text>
                 </View>
                 <View style={styles.darkIcon}>
@@ -174,7 +167,7 @@ export default function EngineerMilestones() {
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <SmallStat label="Total" value={milestones.length} />
                 <SmallStat label="Paid" value={completedCount} />
-                <SmallStat label="Allocated" value={`${totalPercentage}%`} />
+                <SmallStat label="BOQ based" value="Enabled" />
               </View>
 
               <View style={styles.formCard}>
@@ -193,24 +186,14 @@ export default function EngineerMilestones() {
                   onChangeText={setName}
                   style={styles.input}
                 />
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <TextInput
-                    placeholder={`Budget % max ${remainingPercentage}`}
-                    placeholderTextColor={COLORS.TEXT_LIGHT}
-                    keyboardType="numeric"
-                    value={budgetPercentage}
-                    onChangeText={setBudgetPercentage}
-                    style={[styles.input, { flex: 1 }]}
-                  />
-                  <TextInput
-                    placeholder="Days"
-                    placeholderTextColor={COLORS.TEXT_LIGHT}
-                    keyboardType="numeric"
-                    value={durationDays}
-                    onChangeText={setDurationDays}
-                    style={[styles.input, { flex: 1 }]}
-                  />
-                </View>
+                <TextInput
+                  placeholder="Days"
+                  placeholderTextColor={COLORS.TEXT_LIGHT}
+                  keyboardType="numeric"
+                  value={durationDays}
+                  onChangeText={setDurationDays}
+                  style={styles.input}
+                />
                 <TextInput
                   placeholder="Acceptance criteria"
                   placeholderTextColor={COLORS.TEXT_LIGHT}
@@ -252,7 +235,6 @@ export default function EngineerMilestones() {
                 <MilestoneCard
                   key={milestone.id}
                   milestone={milestone}
-                  projectBudget={Number(activeProject?.budget || 0)}
                   loading={statusActionId === milestone.id && updateStatusMutation.isPending}
                   onEdit={() => startEdit(milestone)}
                   onSetActive={() => updateStatusMutation.mutate({ id: milestone.id, status: "active" })}
@@ -277,7 +259,7 @@ function Header() {
         Milestones
       </Text>
       <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13, lineHeight: 19 }}>
-        Build a project plan, allocate budget percentage, and submit completed stages for review.
+        Build a project plan. Budget value is calculated from BOQ items linked to each milestone.
       </Text>
     </View>
   );
@@ -333,21 +315,18 @@ function SmallStat({ label, value }: { label: string; value: string | number }) 
 
 function MilestoneCard({
   milestone,
-  projectBudget,
   loading,
   onEdit,
   onSetActive,
   onSubmitReview,
 }: {
   milestone: EngineerMilestone;
-  projectBudget: number;
   loading: boolean;
   onEdit: () => void;
   onSetActive: () => void;
   onSubmitReview: () => void;
 }) {
-  const percentage = Number(milestone.budgetPercentage || 0);
-  const amount = Math.round((projectBudget * percentage) / 100);
+  const boqTotal = (milestone.boqItems || []).reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
   const color = statusColor(milestone.status);
 
   return (
@@ -366,8 +345,7 @@ function MilestoneCard({
       </View>
 
       <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
-        <Mini label="Budget" value={`${percentage}%`} />
-        <Mini label="Value" value={`${amount.toLocaleString()} RWF`} />
+        <Mini label="BOQ total" value={`${boqTotal.toLocaleString()} RWF`} />
         <Mini label="BOQ" value={milestone._count?.boqItems || 0} />
       </View>
 

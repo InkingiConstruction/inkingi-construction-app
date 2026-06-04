@@ -5,6 +5,7 @@ export default function RootLayout() {
     <RoleTabs
       tabs={[
         { name: "index", title: "Home", icon: "home-outline" },
+        { name: "inventory", title: "Store", icon: "storefront-outline" },
         { name: "rfqs", title: "RFQs", icon: "receipt-outline" },
         { name: "quotes", title: "Quotes", icon: "document-text-outline" },
         { name: "purchase-orders", title: "Orders", icon: "cart-outline" },

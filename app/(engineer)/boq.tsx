@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
-import { EngineerBoqItem, EngineerMilestone, EngineerProject } from "@/components/engineer/engineer-types";
+import { EngineerBoqItem, EngineerMilestone, EngineerProject, EngineerSupplierInventoryItem } from "@/components/engineer/engineer-types";
 import { isAcceptedEngineerProject } from "@/components/engineer/engineer-utils";
 
 export default function EngineerBoq() {
@@ -16,11 +16,8 @@ export default function EngineerBoq() {
   const params = useLocalSearchParams<{ projectId?: string }>();
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [selectedMilestoneId, setSelectedMilestoneId] = useState("");
-  const [category, setCategory] = useState("Materials");
-  const [name, setName] = useState("");
+  const [selectedInventoryItemId, setSelectedInventoryItemId] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [unit, setUnit] = useState("");
-  const [unitPrice, setUnitPrice] = useState("");
   const [notes, setNotes] = useState("");
 
   const projectsQuery = useQuery({
@@ -61,35 +58,42 @@ export default function EngineerBoq() {
   });
 
   const boqItems = boqQuery.data || [];
+  const inventoryQuery = useQuery({
+    queryKey: ["engineer-supplier-inventory"],
+    queryFn: async () => (await api.get<EngineerSupplierInventoryItem[]>(ENDPOINTS.SUPPLIER_INVENTORY.LIST)).data,
+    refetchInterval: 10000,
+  });
+  const inventoryItems = inventoryQuery.data || [];
+  const selectedInventoryItem = inventoryItems.find((item) => item.id === selectedInventoryItemId);
   const total = boqItems.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
-  const refreshing = projectsQuery.isRefetching || milestonesQuery.isRefetching || boqQuery.isRefetching;
+  const refreshing = projectsQuery.isRefetching || milestonesQuery.isRefetching || boqQuery.isRefetching || inventoryQuery.isRefetching;
   const refresh = () => {
     projectsQuery.refetch();
     milestonesQuery.refetch();
     boqQuery.refetch();
+    inventoryQuery.refetch();
   };
 
   const createMutation = useMutation({
     mutationFn: async () => {
       if (!activeMilestoneId) throw new Error("Select a milestone first.");
-      if (!category.trim() || !name.trim() || !quantity.trim() || !unit.trim() || !unitPrice.trim()) {
-        throw new Error("Category, name, quantity, unit, and unit price are required.");
+      if (!selectedInventoryItemId || !quantity.trim()) {
+        throw new Error("Select a supplier item and enter quantity.");
       }
       return api.post(ENDPOINTS.BOQ_ITEMS.CREATE, {
         milestoneId: activeMilestoneId,
-        category: category.trim(),
-        name: name.trim(),
+        supplierInventoryItemId: selectedInventoryItemId,
+        category: selectedInventoryItem?.category,
+        name: selectedInventoryItem?.name,
         quantity: Number(quantity),
-        unit: unit.trim(),
-        unitPrice: Number(unitPrice),
+        unit: selectedInventoryItem?.unit,
+        unitPrice: Number(selectedInventoryItem?.unitPrice || 0),
         notes: notes.trim() || undefined,
       });
     },
     onSuccess: async () => {
-      setName("");
+      setSelectedInventoryItemId("");
       setQuantity("");
-      setUnit("");
-      setUnitPrice("");
       setNotes("");
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ["engineer-boq-items", activeMilestoneId] }),
@@ -142,14 +146,26 @@ export default function EngineerBoq() {
 
             <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, padding: 16, gap: 10 }}>
               <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 17, fontWeight: "900" }}>New BOQ line</Text>
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <Input placeholder="Category" value={category} onChangeText={setCategory} />
-                <Input placeholder="Unit" value={unit} onChangeText={setUnit} />
-              </View>
-              <Input placeholder="Item name" value={name} onChangeText={setName} />
+              <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18 }}>
+                Select a supplier storefront item. The unit price is locked from the supplier's published price.
+              </Text>
+              <InventorySelector items={inventoryItems} activeId={selectedInventoryItemId} onSelect={setSelectedInventoryItemId} />
+              {selectedInventoryItem ? (
+                <View style={{ backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 8, padding: 12 }}>
+                  <Text style={{ color: COLORS.PRIMARY_DARK, fontWeight: "900" }}>{selectedInventoryItem.name}</Text>
+                  <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 4 }}>
+                    {selectedInventoryItem.supplier?.name || "Supplier"} • {Number(selectedInventoryItem.unitPrice).toLocaleString()} RWF / {selectedInventoryItem.unit}
+                  </Text>
+                </View>
+              ) : null}
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Input keyboardType="numeric" placeholder="Quantity" value={quantity} onChangeText={setQuantity} />
-                <Input keyboardType="numeric" placeholder="Unit price" value={unitPrice} onChangeText={setUnitPrice} />
+                <View style={{ backgroundColor: COLORS.MUTED, borderColor: COLORS.BORDER_LIGHT, borderRadius: 8, borderWidth: 1, flex: 1, paddingHorizontal: 12, paddingVertical: 12 }}>
+                  <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>UNIT PRICE</Text>
+                  <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900", marginTop: 3 }}>
+                    {selectedInventoryItem ? `${Number(selectedInventoryItem.unitPrice).toLocaleString()} RWF` : "Select item"}
+                  </Text>
+                </View>
               </View>
               <Input placeholder="Notes" value={notes} onChangeText={setNotes} />
               <Pressable disabled={createMutation.isPending} onPress={() => createMutation.mutate()} style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY, borderRadius: 8, paddingVertical: 13 }}>
@@ -168,12 +184,36 @@ export default function EngineerBoq() {
             </Pressable>
 
             {boqQuery.isLoading ? <ActivityIndicator color={COLORS.PRIMARY} /> : null}
+            {inventoryItems.length === 0 && !inventoryQuery.isLoading ? <Empty text="No supplier storefront items are available yet. Ask suppliers to publish inventory first." /> : null}
             {boqItems.length === 0 && !boqQuery.isLoading ? <Empty text="No BOQ items yet for this milestone." /> : null}
             {boqItems.map((item) => <BoqCard key={item.id} item={item} />)}
           </>
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function InventorySelector({ items, activeId, onSelect }: { items: EngineerSupplierInventoryItem[]; activeId: string; onSelect: (id: string) => void }) {
+  if (items.length === 0) return <Empty text="Supplier storefront is empty." />;
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+      {items.map((item) => (
+        <Pressable
+          key={item.id}
+          onPress={() => onSelect(item.id)}
+          style={{ backgroundColor: item.id === activeId ? COLORS.PRIMARY : COLORS.SURFACE, borderColor: item.id === activeId ? COLORS.PRIMARY : COLORS.BORDER_LIGHT, borderRadius: 8, borderWidth: 1, maxWidth: 240, padding: 12 }}
+        >
+          <Text numberOfLines={1} style={{ color: item.id === activeId ? COLORS.TEXT_WHITE : COLORS.TEXT_PRIMARY, fontWeight: "900" }}>{item.name}</Text>
+          <Text numberOfLines={1} style={{ color: item.id === activeId ? COLORS.TEXT_WHITE : COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 3 }}>
+            {Number(item.unitPrice).toLocaleString()} RWF / {item.unit}
+          </Text>
+          <Text numberOfLines={1} style={{ color: item.id === activeId ? COLORS.TEXT_WHITE : COLORS.TEXT_LIGHT, fontSize: 11, marginTop: 3 }}>
+            {item.supplier?.name || "Supplier"}
+          </Text>
+        </Pressable>
+      ))}
+    </ScrollView>
   );
 }
 
