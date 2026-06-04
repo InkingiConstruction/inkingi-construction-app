@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { router } from "expo-router";
 import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
@@ -8,7 +8,6 @@ import { ENDPOINTS } from "@/api/endpoints";
 import { ClientTopBar } from "@/components/client/client-top-bar";
 import { ClientMilestone, ClientProgressPhoto } from "@/components/client/client-types";
 import { COLORS } from "@/constants/colors";
-import { ProgressMedia, ProgressMediaViewer } from "@/components/shared/progress-media-viewer";
 
 type ProgressGroup = {
   id: string;
@@ -19,7 +18,6 @@ type ProgressGroup = {
 };
 
 export default function ClientProgress() {
-  const [viewerMedia, setViewerMedia] = useState<ProgressMedia | null>(null);
   const progressQuery = useQuery({
     queryKey: ["client-progress-photos"],
     queryFn: async () => (await api.get<ClientProgressPhoto[]>(ENDPOINTS.PROGRESS_PHOTOS.LIST)).data,
@@ -80,25 +78,24 @@ export default function ClientProgress() {
           <Panel title="Recent progress uploads">
             {progressGroups.map((group) => {
               const photo = group.representative;
-              const media = {
-                url: photo.cloudinaryUrl,
-                isVideo: photo.isVideo,
-                title: photo.milestone?.name || photo.project?.name || "Progress update",
-                caption: photo.caption,
-              };
+              const openDetail = () =>
+                router.push({
+                  pathname: "/(client)/progress-detail",
+                  params: { projectId: photo.projectId, groupId: group.id },
+                });
 
               return (
-                <View key={group.id} style={{ backgroundColor: COLORS.MUTED, borderRadius: 8, overflow: "hidden" }}>
+                <Pressable onPress={openDetail} key={group.id} style={{ backgroundColor: COLORS.MUTED, borderRadius: 8, overflow: "hidden" }}>
                   {photo.isVideo ? (
                     <Pressable
-                      onPress={() => setViewerMedia(media)}
+                      onPress={openDetail}
                       style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 170, justifyContent: "center" }}
                     >
                       <Ionicons name="play-circle-outline" size={48} color={COLORS.TEXT_WHITE} />
-                      <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>Open video</Text>
+                      <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>View details</Text>
                     </Pressable>
                   ) : (
-                    <Pressable onPress={() => setViewerMedia(media)}>
+                    <Pressable onPress={openDetail}>
                       <Image source={{ uri: photo.cloudinaryUrl }} style={{ height: 170, width: "100%" }} />
                     </Pressable>
                   )}
@@ -118,14 +115,13 @@ export default function ClientProgress() {
                       </Text>
                     ) : null}
                   </View>
-                </View>
+                </Pressable>
               );
             })}
             {progressGroups.length === 0 ? <Empty text="Reviewed progress updates will appear after the supervisor approves or rejects engineer uploads." /> : null}
           </Panel>
         </View>
       </ScrollView>
-      <ProgressMediaViewer media={viewerMedia} onClose={() => setViewerMedia(null)} />
     </SafeAreaView>
   );
 }

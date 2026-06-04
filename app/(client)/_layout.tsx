@@ -18,6 +18,7 @@ export default function RootLayout() {
         "create-project/_steps/Step4_Documents",
         "create-project/_steps/Step5_Review",
         "progress",
+        "progress-detail",
         "assign-engineer",
         "assign-supervisor",
         "notifications",

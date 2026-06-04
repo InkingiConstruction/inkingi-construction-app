@@ -64,21 +64,25 @@ export default function EngineerProgress() {
   });
 
   const captureMedia = async (kind: "photo" | "video") => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("Permission required", "Camera permission is required to capture progress media.");
-      return;
-    }
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission required", "Camera permission is required to capture progress media.");
+        return;
+      }
 
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: false,
-      mediaTypes: kind === "video" ? ["videos"] : ["images"],
-      quality: kind === "video" ? 0.75 : 0.85,
-      videoMaxDuration: 90,
-    });
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        mediaTypes: kind === "video" ? ["videos"] : ["images"],
+        quality: kind === "video" ? 0.7 : 0.8,
+        videoMaxDuration: 75,
+      });
 
-    if (!result.canceled) {
-      setMediaItems((current) => [...current, result.assets[0]]);
+      if (!result.canceled) {
+        setMediaItems((current) => [...current, result.assets[0]]);
+      }
+    } catch (error) {
+      Alert.alert("Camera failed", error instanceof Error ? error.message : "Please try again.");
     }
   };
 
@@ -123,25 +127,27 @@ export default function EngineerProgress() {
         throw new Error("Take at least three photos, or record a video.");
       }
 
+      const sharedCaption = caption.trim();
       const progressGroupId = `progress-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const form = new FormData();
-      form.append("projectId", activeProjectId);
-      form.append("progressGroupId", progressGroupId);
-      if (activeMilestoneId) form.append("milestoneId", activeMilestoneId);
-      if (caption.trim()) form.append("caption", caption.trim());
 
       for (const [index, item] of mediaItems.entries()) {
+        const form = new FormData();
+        form.append("projectId", activeProjectId);
+        form.append("progressGroupId", progressGroupId);
+        form.append("notifyOnUpload", index === mediaItems.length - 1 ? "true" : "false");
+        if (activeMilestoneId) form.append("milestoneId", activeMilestoneId);
+        if (sharedCaption) form.append("caption", sharedCaption);
         form.append("media", {
           uri: item.uri,
           name: item.fileName || `progress-${Date.now()}-${index}.${item.type === "video" ? "mp4" : "jpg"}`,
           type: item.mimeType || (item.type === "video" ? "video/mp4" : "image/jpeg"),
         } as unknown as Blob);
-      }
 
-      await api.post(ENDPOINTS.PROGRESS_PHOTOS.CREATE, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-        timeout: 90000,
-      });
+        await api.post(ENDPOINTS.PROGRESS_PHOTOS.CREATE, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+          timeout: 45000,
+        });
+      }
 
       setCaption("");
       setMediaItems([]);
@@ -259,7 +265,6 @@ export default function EngineerProgress() {
                     params: { projectId: activeProjectId, groupId: group.id },
                   })
                 }
-                onPreview={setViewerMedia}
               />
             ))}
           </>
@@ -329,29 +334,21 @@ function groupProgress(items: EngineerProgressPhoto[]): ProgressGroup[] {
 function ProgressGroupCard({
   group,
   onOpen,
-  onPreview,
 }: {
   group: ProgressGroup;
   onOpen: () => void;
-  onPreview: (media: ProgressMedia) => void;
 }) {
   const item = group.representative;
-  const media = {
-    url: item.cloudinaryUrl,
-    isVideo: item.isVideo,
-    title: item.milestone?.name || item.project?.name || "Project progress",
-    caption: item.caption,
-  };
 
   return (
     <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, overflow: "hidden" }}>
       {item.isVideo ? (
-        <Pressable onPress={() => onPreview(media)} style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 180, justifyContent: "center" }}>
+        <Pressable onPress={onOpen} style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 180, justifyContent: "center" }}>
           <Ionicons name="play-circle-outline" size={48} color={COLORS.TEXT_WHITE} />
-          <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>Open video</Text>
+          <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>View details</Text>
         </Pressable>
       ) : (
-        <Pressable onPress={() => onPreview(media)}>
+        <Pressable onPress={onOpen}>
           <Image source={{ uri: item.cloudinaryUrl }} style={{ backgroundColor: COLORS.MUTED, height: 180, width: "100%" }} />
         </Pressable>
       )}

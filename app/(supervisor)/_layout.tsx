@@ -12,6 +12,7 @@ export default function RootLayout() {
       hiddenRoutes={[
         "inspections",
         "progress-review",
+        "progress-detail",
         "notifications",
         "profile",
         "profile-edit",

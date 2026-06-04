@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -98,7 +98,12 @@ export default function ProgressReview() {
   const selectedProgressGroup = progressGroups.find((group) => group.id === selectedProgressGroupId);
 
   const openProgress = (id: string) => {
-    setSelectedProgressGroupId(id);
+    const group = progressGroups.find((item) => item.id === id);
+    if (!group) return;
+    router.push({
+      pathname: "/(supervisor)/progress-detail",
+      params: { projectId: group.representative.projectId, groupId: group.id },
+    });
   };
 
   const closeSheet = () => setSelectedProgressGroupId("");
@@ -150,25 +155,18 @@ export default function ProgressReview() {
         renderItem={({ item }) => {
           const group = item;
           const representative = group.representative;
-          const media = {
-            url: representative.cloudinaryUrl,
-            isVideo: representative.isVideo,
-            title: representative.milestone?.name || representative.project?.name || "Project progress",
-            caption: representative.caption,
-          };
-
           return (
             <Pressable onPress={() => openProgress(group.id)} style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, overflow: "hidden" }}>
               {representative.isVideo ? (
                 <Pressable
-                  onPress={() => setViewerMedia(media)}
+                  onPress={() => openProgress(group.id)}
                   style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 190, justifyContent: "center" }}
                 >
                   <Ionicons name="play-circle-outline" size={54} color={COLORS.TEXT_WHITE} />
-                  <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>Open video</Text>
+                  <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>View details</Text>
                 </Pressable>
               ) : (
-                <Pressable onPress={() => setViewerMedia(media)}>
+                <Pressable onPress={() => openProgress(group.id)}>
                   <Image source={{ uri: representative.cloudinaryUrl }} style={{ backgroundColor: COLORS.MUTED, height: 210, width: "100%" }} />
                 </Pressable>
               )}
