@@ -5,8 +5,10 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
+  ScrollView,
   Text,
   TextInput,
   View,
@@ -43,6 +45,7 @@ export default function SupervisorInspections() {
   const params = useLocalSearchParams<{ projectId?: string; milestoneId?: string }>();
   const queryClient = useQueryClient();
   const [selectedMilestoneId, setSelectedMilestoneId] = useState(params.milestoneId || "");
+  const [sheetOpen, setSheetOpen] = useState(Boolean(params.milestoneId));
   const [notes, setNotes] = useState("");
   const [rating, setRating] = useState("5");
   const [error, setError] = useState("");
@@ -82,6 +85,7 @@ export default function SupervisorInspections() {
     onSuccess: () => {
       setError("");
       setNotes("");
+      setSheetOpen(false);
       queryClient.invalidateQueries({ queryKey: ["supervisor-milestones"] });
       queryClient.invalidateQueries({ queryKey: ["supervisor-milestone-detail", selectedMilestoneId] });
       queryClient.invalidateQueries({ queryKey: ["supervisor-inspections"] });
@@ -101,6 +105,11 @@ export default function SupervisorInspections() {
     inspectMutation.mutate(decision);
   };
 
+  const openMilestone = (id: string) => {
+    setSelectedMilestoneId(id);
+    setSheetOpen(true);
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <FlatList
@@ -112,20 +121,6 @@ export default function SupervisorInspections() {
             <SupervisorTopBar
               title="Inspect"
               subtitle="Approve a milestone or request revision from the assigned project."
-            />
-            <SelectedMilestoneDetails
-              loading={selectedMilestoneQuery.isLoading}
-              milestone={selectedMilestoneQuery.data}
-            />
-            <InspectionForm
-              notes={notes}
-              rating={rating}
-              loading={inspectMutation.isPending}
-              error={error}
-              onNotesChange={setNotes}
-              onRatingChange={setRating}
-              onApprove={() => submit("approved")}
-              onRevision={() => submit("revision_required")}
             />
           </View>
         }
@@ -147,10 +142,10 @@ export default function SupervisorInspections() {
         }
         renderItem={({ item }) => (
           <Pressable
-            onPress={() => setSelectedMilestoneId(item.id)}
+            onPress={() => openMilestone(item.id)}
             style={{
-              backgroundColor: selectedMilestoneId === item.id ? COLORS.PRIMARY_LIGHT : COLORS.SURFACE,
-              borderColor: selectedMilestoneId === item.id ? COLORS.PRIMARY : COLORS.BORDER_LIGHT,
+              backgroundColor: COLORS.SURFACE,
+              borderColor: COLORS.BORDER_LIGHT,
               borderRadius: 10,
               borderWidth: 1,
               padding: 15,
@@ -158,9 +153,9 @@ export default function SupervisorInspections() {
           >
             <View style={{ alignItems: "center", flexDirection: "row", gap: 12 }}>
               <Ionicons
-                name={selectedMilestoneId === item.id ? "radio-button-on" : "radio-button-off"}
+                name="clipboard-outline"
                 size={22}
-                color={selectedMilestoneId === item.id ? COLORS.PRIMARY : COLORS.TEXT_LIGHT}
+                color={COLORS.PRIMARY}
               />
               <View style={{ flex: 1 }}>
                 <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>{item.name}</Text>
@@ -168,11 +163,86 @@ export default function SupervisorInspections() {
                   Status: {item.status}
                 </Text>
               </View>
+              <Ionicons name="chevron-up-outline" size={18} color={COLORS.TEXT_LIGHT} />
             </View>
           </Pressable>
         )}
       />
+      <MilestoneReviewSheet
+        error={error}
+        loading={selectedMilestoneQuery.isLoading}
+        milestone={selectedMilestoneQuery.data}
+        notes={notes}
+        rating={rating}
+        reviewLoading={inspectMutation.isPending}
+        visible={sheetOpen}
+        onApprove={() => submit("approved")}
+        onClose={() => setSheetOpen(false)}
+        onNotesChange={setNotes}
+        onRatingChange={setRating}
+        onRevision={() => submit("revision_required")}
+      />
     </SafeAreaView>
+  );
+}
+
+function MilestoneReviewSheet({
+  visible,
+  loading,
+  milestone,
+  notes,
+  rating,
+  reviewLoading,
+  error,
+  onClose,
+  onNotesChange,
+  onRatingChange,
+  onApprove,
+  onRevision,
+}: {
+  visible: boolean;
+  loading: boolean;
+  milestone?: SupervisorMilestoneDetail;
+  notes: string;
+  rating: string;
+  reviewLoading: boolean;
+  error: string;
+  onClose: () => void;
+  onNotesChange: (value: string) => void;
+  onRatingChange: (value: string) => void;
+  onApprove: () => void;
+  onRevision: () => void;
+}) {
+  return (
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+      <View style={styles.sheetBackdrop}>
+        <Pressable style={styles.sheetScrim} onPress={onClose} />
+        <View style={styles.sheet}>
+          <View style={styles.sheetHandle} />
+          <View style={{ alignItems: "center", flexDirection: "row", gap: 10, justifyContent: "space-between" }}>
+            <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontSize: 20, fontWeight: "900" }}>
+              Review milestone
+            </Text>
+            <Pressable onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={20} color={COLORS.TEXT_PRIMARY} />
+            </Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+            <SelectedMilestoneDetails loading={loading} milestone={milestone} />
+            <InspectionForm
+              error={error}
+              loading={reviewLoading}
+              notes={notes}
+              rating={rating}
+              onApprove={onApprove}
+              onNotesChange={onNotesChange}
+              onRatingChange={onRatingChange}
+              onRevision={onRevision}
+            />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -365,6 +435,42 @@ function DecisionButton({ label, color, disabled, onPress }: { label: string; co
 }
 
 const styles = {
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end" as const,
+  },
+  sheetScrim: {
+    backgroundColor: "rgba(15,23,42,0.45)",
+    bottom: 0,
+    left: 0,
+    position: "absolute" as const,
+    right: 0,
+    top: 0,
+  },
+  sheet: {
+    backgroundColor: COLORS.BACKGROUND,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    maxHeight: "88%" as const,
+    padding: 18,
+    paddingBottom: 0,
+  },
+  sheetHandle: {
+    alignSelf: "center" as const,
+    backgroundColor: COLORS.BORDER,
+    borderRadius: 999,
+    height: 4,
+    marginBottom: 14,
+    width: 44,
+  },
+  closeButton: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.MUTED,
+    borderRadius: 999,
+    height: 36,
+    justifyContent: "center" as const,
+    width: 36,
+  },
   detailCard: {
     backgroundColor: COLORS.SURFACE,
     borderColor: COLORS.BORDER_LIGHT,

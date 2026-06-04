@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
-import { useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Image, Pressable, RefreshControl, Text, TextInput, View } from "react-native";
+import { useMemo, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -16,6 +16,8 @@ export default function ProgressReview() {
   const queryClient = useQueryClient();
   const [commentsById, setCommentsById] = useStateMap();
   const [viewerMedia, setViewerMedia] = useState<ProgressMedia | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState(params.projectId || "");
+  const [selectedProgressId, setSelectedProgressId] = useState("");
 
   const progressQuery = useQuery({
     queryKey: ["supervisor-progress", params.projectId],
@@ -26,6 +28,7 @@ export default function ProgressReview() {
       return response.data;
     },
     refetchOnMount: "always",
+    refetchInterval: 10000,
   });
 
   const reviewProgress = useMutation({
@@ -52,25 +55,73 @@ export default function ProgressReview() {
     onError: (error) => Alert.alert("Review failed", error instanceof Error ? error.message : "Try again."),
   });
 
-  const progress = progressQuery.data || [];
+  const progress = useMemo(() => progressQuery.data ?? [], [progressQuery.data]);
+  const projects = useMemo(() => {
+    const projectMap = new Map<string, { id: string; name: string; count: number; pending: number }>();
+
+    for (const item of progress) {
+      const id = item.projectId;
+      const current = projectMap.get(id) || {
+        id,
+        name: item.project?.name || "Project",
+        count: 0,
+        pending: 0,
+      };
+      current.count += 1;
+      if (!item.reviewStatus || item.reviewStatus === "pending") current.pending += 1;
+      projectMap.set(id, current);
+    }
+
+    return [...projectMap.values()];
+  }, [progress]);
+  const activeProjectId = selectedProjectId || projects[0]?.id || "";
+  const activeProject = projects.find((project) => project.id === activeProjectId);
+  const projectProgress = activeProjectId
+    ? progress.filter((item) => item.projectId === activeProjectId)
+    : progress;
+  const selectedProgress = progress.find((item) => item.id === selectedProgressId);
+
+  const openProgress = (id: string) => {
+    setSelectedProgressId(id);
+  };
+
+  const closeSheet = () => setSelectedProgressId("");
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <FlatList
-        data={progress}
+        data={projectProgress}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}
         ListHeaderComponent={
-          <SupervisorTopBar
-            title="Progress review"
-            subtitle="Approve or reject engineer progress uploads with clear comments."
-          />
+          <View>
+            <SupervisorTopBar
+              title="Progress review"
+              subtitle="Open a project, then review each progress photo or video from a bottom sheet."
+            />
+            {!params.projectId ? (
+              <ProjectPicker
+                activeProjectId={activeProjectId}
+                projects={projects}
+                onSelect={(id) => setSelectedProjectId(id)}
+              />
+            ) : null}
+            {activeProject ? (
+              <View style={styles.projectSummary}>
+                <Text style={styles.projectEyebrow}>SELECTED PROJECT</Text>
+                <Text style={styles.projectTitle}>{activeProject.name}</Text>
+                <Text style={styles.projectBody}>
+                  {activeProject.count} update{activeProject.count === 1 ? "" : "s"} • {activeProject.pending} pending review
+                </Text>
+              </View>
+            ) : null}
+          </View>
         }
         ListEmptyComponent={
           progressQuery.isLoading ? (
             <ActivityIndicator color={COLORS.PRIMARY} style={{ marginTop: 40 }} />
           ) : (
-            <Empty />
+            <Empty text={projects.length === 0 ? "Engineer photos and videos appear here after upload." : "No progress uploads for this project."} />
           )
         }
         refreshControl={
@@ -81,8 +132,6 @@ export default function ProgressReview() {
           />
         }
         renderItem={({ item }) => {
-          const comment = commentsById[item.id] ?? item.supervisorComment ?? "";
-          const rejectedWithoutComment = item.reviewStatus !== "rejected" && !comment.trim();
           const media = {
             url: item.cloudinaryUrl,
             isVideo: item.isVideo,
@@ -91,7 +140,7 @@ export default function ProgressReview() {
           };
 
           return (
-            <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, overflow: "hidden" }}>
+            <Pressable onPress={() => openProgress(item.id)} style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, overflow: "hidden" }}>
               {item.isVideo ? (
                 <Pressable
                   onPress={() => setViewerMedia(media)}
@@ -125,72 +174,197 @@ export default function ProgressReview() {
                 <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20, marginTop: 12 }}>
                   {item.caption || "No caption provided."}
                 </Text>
-
-                <TextInput
-                  multiline
-                  onChangeText={(value) => setCommentsById(item.id, value)}
-                  placeholder="Supervisor comment or rejection reason"
-                  placeholderTextColor={COLORS.TEXT_LIGHT}
-                  style={{
-                    backgroundColor: COLORS.MUTED,
-                    borderRadius: 8,
-                    color: COLORS.TEXT_PRIMARY,
-                    marginTop: 12,
-                    minHeight: 72,
-                    padding: 12,
-                  }}
-                  value={comment}
-                />
-
-                <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-                  <Pressable
-                    disabled={reviewProgress.isPending || rejectedWithoutComment}
-                    onPress={() =>
-                      reviewProgress.mutate({
-                        id: item.id,
-                        reviewStatus: "rejected",
-                        supervisorComment: comment.trim(),
-                      })
-                    }
-                    style={{
-                      alignItems: "center",
-                      backgroundColor: COLORS.MUTED,
-                      borderRadius: 8,
-                      flex: 1,
-                      opacity: reviewProgress.isPending || rejectedWithoutComment ? 0.55 : 1,
-                      paddingVertical: 13,
-                    }}
-                  >
-                    <Text style={{ color: COLORS.ERROR, fontWeight: "900" }}>Reject</Text>
-                  </Pressable>
-                  <Pressable
-                    disabled={reviewProgress.isPending}
-                    onPress={() =>
-                      reviewProgress.mutate({
-                        id: item.id,
-                        reviewStatus: "approved",
-                        supervisorComment: comment.trim() || "Progress approved.",
-                      })
-                    }
-                    style={{
-                      alignItems: "center",
-                      backgroundColor: COLORS.PRIMARY,
-                      borderRadius: 8,
-                      flex: 1,
-                      opacity: reviewProgress.isPending ? 0.7 : 1,
-                      paddingVertical: 13,
-                    }}
-                  >
-                    <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>Approve</Text>
-                  </Pressable>
+                <View style={styles.openHint}>
+                  <Text style={styles.openHintText}>Tap for full review</Text>
+                  <Ionicons name="chevron-up-outline" size={16} color={COLORS.PRIMARY_DARK} />
                 </View>
               </View>
-            </View>
+            </Pressable>
           );
+        }}
+      />
+      <ProgressReviewSheet
+        comment={selectedProgress ? commentsById[selectedProgress.id] ?? selectedProgress.supervisorComment ?? "" : ""}
+        item={selectedProgress}
+        loading={reviewProgress.isPending}
+        visible={Boolean(selectedProgress)}
+        onApprove={(comment) => {
+          if (!selectedProgress) return;
+          reviewProgress.mutate({
+            id: selectedProgress.id,
+            reviewStatus: "approved",
+            supervisorComment: comment.trim() || "Progress approved.",
+          });
+          closeSheet();
+        }}
+        onClose={closeSheet}
+        onCommentChange={(value) => selectedProgress && setCommentsById(selectedProgress.id, value)}
+        onOpenMedia={setViewerMedia}
+        onReject={(comment) => {
+          if (!selectedProgress) return;
+          reviewProgress.mutate({
+            id: selectedProgress.id,
+            reviewStatus: "rejected",
+            supervisorComment: comment.trim(),
+          });
+          closeSheet();
         }}
       />
       <ProgressMediaViewer media={viewerMedia} onClose={() => setViewerMedia(null)} />
     </SafeAreaView>
+  );
+}
+
+function ProjectPicker({
+  projects,
+  activeProjectId,
+  onSelect,
+}: {
+  projects: { id: string; name: string; count: number; pending: number }[];
+  activeProjectId: string;
+  onSelect: (id: string) => void;
+}) {
+  if (projects.length === 0) return null;
+
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 12 }}>
+      {projects.map((project) => {
+        const active = project.id === activeProjectId;
+        return (
+          <Pressable
+            key={project.id}
+            onPress={() => onSelect(project.id)}
+            style={[styles.projectChip, active && styles.projectChipActive]}
+          >
+            <Text numberOfLines={1} style={[styles.projectChipTitle, active && styles.projectChipTitleActive]}>
+              {project.name}
+            </Text>
+            <Text style={[styles.projectChipBody, active && styles.projectChipBodyActive]}>
+              {project.pending} pending • {project.count} total
+            </Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+function ProgressReviewSheet({
+  visible,
+  item,
+  comment,
+  loading,
+  onClose,
+  onCommentChange,
+  onOpenMedia,
+  onApprove,
+  onReject,
+}: {
+  visible: boolean;
+  item?: SupervisorProgressPhoto;
+  comment: string;
+  loading: boolean;
+  onClose: () => void;
+  onCommentChange: (value: string) => void;
+  onOpenMedia: (media: ProgressMedia) => void;
+  onApprove: (comment: string) => void;
+  onReject: (comment: string) => void;
+}) {
+  if (!item) return null;
+
+  const media = {
+    url: item.cloudinaryUrl,
+    isVideo: item.isVideo,
+    title: item.milestone?.name || item.project?.name || "Project progress",
+    caption: item.caption,
+  };
+  const rejectDisabled = loading || !comment.trim();
+
+  return (
+    <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
+      <View style={styles.sheetBackdrop}>
+        <Pressable style={styles.sheetScrim} onPress={onClose} />
+        <View style={styles.sheet}>
+          <View style={styles.sheetHandle} />
+          <View style={{ alignItems: "center", flexDirection: "row", gap: 10, justifyContent: "space-between" }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sheetEyebrow}>PROGRESS DETAIL</Text>
+              <Text style={styles.sheetTitle}>{item.milestone?.name || item.project?.name || "Project progress"}</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={20} color={COLORS.TEXT_PRIMARY} />
+            </Pressable>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+            <Pressable onPress={() => onOpenMedia(media)} style={styles.sheetMedia}>
+              {item.isVideo ? (
+                <>
+                  <Ionicons name="play-circle-outline" size={56} color={COLORS.TEXT_WHITE} />
+                  <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>Open video</Text>
+                </>
+              ) : (
+                <Image source={{ uri: item.cloudinaryUrl }} style={{ height: 220, width: "100%" }} />
+              )}
+            </Pressable>
+
+            <View style={styles.detailCard}>
+              <InfoLine label="Project" value={item.project?.name || "Project"} />
+              <InfoLine label="Milestone" value={item.milestone?.name || "Not linked"} />
+              <InfoLine label="Uploaded by" value={item.uploadedBy?.name || "Engineer"} />
+              <InfoLine label="Type" value={item.isVideo ? "Video" : "Photo"} />
+              <InfoLine label="Status" value={item.reviewStatus || "pending"} />
+            </View>
+
+            <View style={styles.detailCard}>
+              <Text style={styles.detailTitle}>Caption</Text>
+              <Text style={styles.detailBody}>{item.caption || "No caption provided."}</Text>
+              {item.supervisorComment ? (
+                <>
+                  <Text style={[styles.detailTitle, { marginTop: 14 }]}>Previous comment</Text>
+                  <Text style={styles.detailBody}>{item.supervisorComment}</Text>
+                </>
+              ) : null}
+            </View>
+
+            <TextInput
+              multiline
+              onChangeText={onCommentChange}
+              placeholder="Supervisor comment or rejection reason"
+              placeholderTextColor={COLORS.TEXT_LIGHT}
+              style={styles.commentInput}
+              value={comment}
+            />
+
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+              <Pressable
+                disabled={rejectDisabled}
+                onPress={() => onReject(comment)}
+                style={[styles.rejectButton, rejectDisabled && { opacity: 0.55 }]}
+              >
+                <Text style={{ color: COLORS.ERROR, fontWeight: "900" }}>Reject</Text>
+              </Pressable>
+              <Pressable
+                disabled={loading}
+                onPress={() => onApprove(comment)}
+                style={[styles.approveButton, loading && { opacity: 0.7 }]}
+              >
+                <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>Approve</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function InfoLine({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoLine}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
   );
 }
 
@@ -206,13 +380,13 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function Empty() {
+function Empty({ text }: { text: string }) {
   return (
     <View style={{ alignItems: "center", backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, padding: 28 }}>
       <Ionicons name="images-outline" size={38} color={COLORS.TEXT_LIGHT} />
       <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: "900", marginTop: 12 }}>No progress uploads</Text>
       <Text style={{ color: COLORS.TEXT_SECONDARY, marginTop: 6, textAlign: "center" }}>
-        Engineer photos and videos appear here after upload.
+        {text}
       </Text>
     </View>
   );
@@ -225,3 +399,191 @@ function useStateMap() {
   };
   return [values, setValue] as const;
 }
+
+const styles = {
+  projectChip: {
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 10,
+    borderWidth: 1,
+    maxWidth: 230,
+    padding: 12,
+  },
+  projectChipActive: {
+    backgroundColor: COLORS.PRIMARY,
+    borderColor: COLORS.PRIMARY,
+  },
+  projectChipTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontWeight: "900" as const,
+  },
+  projectChipTitleActive: {
+    color: COLORS.TEXT_WHITE,
+  },
+  projectChipBody: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 12,
+    marginTop: 3,
+  },
+  projectChipBodyActive: {
+    color: COLORS.TEXT_WHITE,
+  },
+  projectSummary: {
+    backgroundColor: COLORS.INK,
+    borderRadius: 12,
+    marginBottom: 4,
+    padding: 16,
+  },
+  projectEyebrow: {
+    color: "rgba(255,255,255,0.62)",
+    fontSize: 10,
+    fontWeight: "900" as const,
+  },
+  projectTitle: {
+    color: COLORS.TEXT_WHITE,
+    fontSize: 20,
+    fontWeight: "900" as const,
+    marginTop: 4,
+  },
+  projectBody: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    marginTop: 4,
+  },
+  openHint: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderRadius: 8,
+    flexDirection: "row" as const,
+    gap: 6,
+    justifyContent: "center" as const,
+    marginTop: 12,
+    paddingVertical: 10,
+  },
+  openHintText: {
+    color: COLORS.PRIMARY_DARK,
+    fontSize: 12,
+    fontWeight: "900" as const,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end" as const,
+  },
+  sheetScrim: {
+    backgroundColor: "rgba(15,23,42,0.45)",
+    bottom: 0,
+    left: 0,
+    position: "absolute" as const,
+    right: 0,
+    top: 0,
+  },
+  sheet: {
+    backgroundColor: COLORS.BACKGROUND,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    maxHeight: "90%" as const,
+    padding: 18,
+    paddingBottom: 0,
+  },
+  sheetHandle: {
+    alignSelf: "center" as const,
+    backgroundColor: COLORS.BORDER,
+    borderRadius: 999,
+    height: 4,
+    marginBottom: 14,
+    width: 44,
+  },
+  sheetEyebrow: {
+    color: COLORS.PRIMARY,
+    fontSize: 10,
+    fontWeight: "900" as const,
+  },
+  sheetTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 20,
+    fontWeight: "900" as const,
+    marginTop: 3,
+  },
+  closeButton: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.MUTED,
+    borderRadius: 999,
+    height: 36,
+    justifyContent: "center" as const,
+    width: 36,
+  },
+  sheetMedia: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.INK,
+    borderRadius: 12,
+    justifyContent: "center" as const,
+    marginTop: 16,
+    minHeight: 220,
+    overflow: "hidden" as const,
+  },
+  detailCard: {
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 14,
+  },
+  detailTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 13,
+    fontWeight: "900" as const,
+  },
+  detailBody: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 5,
+  },
+  infoLine: {
+    alignItems: "center" as const,
+    borderBottomColor: COLORS.BORDER_LIGHT,
+    borderBottomWidth: 1,
+    flexDirection: "row" as const,
+    gap: 10,
+    justifyContent: "space-between" as const,
+    paddingVertical: 9,
+  },
+  infoLabel: {
+    color: COLORS.TEXT_LIGHT,
+    fontSize: 11,
+    fontWeight: "900" as const,
+  },
+  infoValue: {
+    color: COLORS.TEXT_PRIMARY,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "900" as const,
+    textAlign: "right" as const,
+  },
+  commentInput: {
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 12,
+    borderWidth: 1,
+    color: COLORS.TEXT_PRIMARY,
+    marginTop: 12,
+    minHeight: 86,
+    padding: 12,
+    textAlignVertical: "top" as const,
+  },
+  rejectButton: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.MUTED,
+    borderRadius: 8,
+    flex: 1,
+    paddingVertical: 13,
+  },
+  approveButton: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 8,
+    flex: 1,
+    paddingVertical: 13,
+  },
+};
