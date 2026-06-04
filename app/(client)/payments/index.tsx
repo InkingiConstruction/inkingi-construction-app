@@ -1,14 +1,14 @@
 // app/(client)/payments/index.tsx
 /**
  * @fileoverview Project Wallet Hub
- * Shows per-project fund balances stored in AsyncStorage.
+ * Shows per-project escrow balances from the backend.
  * Passcode is verified once per session; subsequent actions skip re-prompting.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, Pressable,
-  ActivityIndicator, RefreshControl, Alert,
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -21,14 +21,8 @@ import {
   hasPasscode,
   isPasscodeSessionUnlocked,
 } from '@/utils/SecurityUtils';
-import {
-  getAllFunds,
-  ensureProjectFund,
-  formatRWF,
-  ProjectFund,
-} from '@/utils/projectFunds';
+import { formatRWF } from '@/utils/projectFunds';
 import VerifyPasscodeModal from './verify-passcode';
-import { useSampleFlowStore } from '@/store/sampleFlow.store';
 
 interface Project {
   id: string;
@@ -38,15 +32,30 @@ interface Project {
   status?: string;
 }
 
+interface EscrowTransaction {
+  id: string;
+  type?: string;
+  amount?: string | number;
+  method?: string | null;
+  description?: string | null;
+  createdAt?: string;
+}
+
+interface EscrowAccount {
+  id: string;
+  projectId: string;
+  balance?: string | number;
+  lockedBalance?: string | number;
+  currency?: string;
+  transactions?: EscrowTransaction[];
+}
+
 export default function ClientPayments() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [balanceVisible, setBalanceVisible] = useState(false);
-  const [funds, setFunds] = useState<Record<string, ProjectFund>>({});
   const [passcodeModal, setPasscodeModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<'view_balance' | null>(null);
-
-  const { bankAccounts, linkBankAccount, unlinkBankAccount } = useSampleFlowStore();
 
   // ── Load projects from API ──────────────────────────────────────────────────
   const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
@@ -55,16 +64,22 @@ export default function ClientPayments() {
       const res = await api.get<Project[]>(ENDPOINTS.PROJECTS.LIST);
       return res.data;
     },
+    refetchInterval: 10000,
   });
 
-  // ── Load / sync fund wallets ────────────────────────────────────────────────
-  const loadFunds = useCallback(async (projectList: Project[]) => {
-    for (const p of projectList) {
-      await ensureProjectFund(p.id, p.name, p.budget ?? p.totalBudget ?? 0);
+  const escrowQuery = useQuery<EscrowAccount[]>({
+    queryKey: ['client-escrow-accounts', refreshKey],
+    queryFn: async () => (await api.get<EscrowAccount[]>(ENDPOINTS.ESCROW_ACCOUNTS.LIST)).data,
+    refetchInterval: 10000,
+  });
+
+  const escrowByProjectId = useMemo(() => {
+    const map: Record<string, EscrowAccount> = {};
+    for (const escrow of escrowQuery.data || []) {
+      map[escrow.projectId] = escrow;
     }
-    const all = await getAllFunds();
-    setFunds(all);
-  }, []);
+    return map;
+  }, [escrowQuery.data]);
 
   useFocusEffect(
     useCallback(() => {
@@ -72,21 +87,15 @@ export default function ClientPayments() {
         const ready = await hasPasscode();
         if (!ready) {
           router.push('/(client)/payments/passcode-setup' as never);
-          return;
-        }
-        if (projects.length > 0) await loadFunds(projects);
-        else {
-          const all = await getAllFunds();
-          setFunds(all);
         }
       })();
-    }, [projects, loadFunds])
+    }, [])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
     setRefreshKey(k => k + 1);
-    await loadFunds(projects);
+    await escrowQuery.refetch();
     setRefreshing(false);
   };
 
@@ -107,8 +116,8 @@ export default function ClientPayments() {
   };
 
   // ── Derived totals ──────────────────────────────────────────────────────────
-  const totalBalance = Object.values(funds).reduce((s, f) => s + f.balance, 0);
-  const totalBudget = Object.values(funds).reduce((s, f) => s + f.budget, 0);
+  const totalBalance = Object.values(escrowByProjectId).reduce((s, escrow) => s + Number(escrow.balance || 0), 0);
+  const totalBudget = projects.reduce((s, project) => s + Number(project.budget ?? project.totalBudget ?? 0), 0);
 
   const handleAddFunds = (project: Project) => {
     requirePasscode(null, () => {
@@ -118,27 +127,29 @@ export default function ClientPayments() {
           projectId: project.id,
           projectName: project.name,
           budget: String(project.budget ?? project.totalBudget ?? 0),
-          currentBalance: String(funds[project.id]?.balance ?? 0),
+          currentBalance: String(escrowByProjectId[project.id]?.balance ?? 0),
         },
       } as never);
     });
   };
 
   const handleWithdraw = (project: Project) => {
-    const fund = funds[project.id];
-    if (!fund || fund.balance === 0) return;
+    const escrow = escrowByProjectId[project.id];
+    const balance = Number(escrow?.balance || 0);
+    if (!escrow || balance === 0) return;
     requirePasscode(null, () => {
       router.push({
         pathname: '/(client)/payments/withdraw',
         params: {
-          vaultId: project.id,
-          balance: String(fund.balance),
+          vaultId: escrow.id,
+          projectId: project.id,
+          balance: String(balance),
         },
       } as never);
     });
   };
 
-  if (projectsLoading) {
+  if (projectsLoading || escrowQuery.isLoading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -381,11 +392,11 @@ export default function ClientPayments() {
             </View>
           ) : (
             projects.map(project => {
-              const fund = funds[project.id];
-              const balance = fund?.balance ?? 0;
-              const budget = fund?.budget ?? project.budget ?? project.totalBudget ?? 0;
+              const escrow = escrowByProjectId[project.id];
+              const balance = Number(escrow?.balance || 0);
+              const budget = Number(project.budget ?? project.totalBudget ?? 0);
               const pct = budget > 0 ? Math.min(100, Math.round((balance / budget) * 100)) : 0;
-              const recentTx = fund?.transactions?.[0];
+              const recentTx = escrow?.transactions?.[0];
 
               return (
                 <View
@@ -418,7 +429,7 @@ export default function ClientPayments() {
                         {project.name}
                       </Text>
                       <Text style={{ fontSize: 12, color: COLORS.TEXT_SECONDARY, marginTop: 1 }}>
-                        {fund?.transactions?.length ?? 0} transaction{(fund?.transactions?.length ?? 0) !== 1 ? 's' : ''}
+                        {escrow?.transactions?.length ?? 0} transaction{(escrow?.transactions?.length ?? 0) !== 1 ? 's' : ''}
                       </Text>
                     </View>
                     <View style={{
@@ -476,10 +487,10 @@ export default function ClientPayments() {
                         color={recentTx.type === 'deposit' ? COLORS.SUCCESS : COLORS.ERROR}
                       />
                       <Text style={{ flex: 1, fontSize: 12, color: COLORS.TEXT_SECONDARY, marginLeft: 8 }}>
-                        {recentTx.type === 'deposit' ? '+' : '-'}{formatRWF(recentTx.amount)} via {recentTx.methodLabel}
+                        {recentTx.type === 'deposit' ? '+' : '-'}{formatRWF(Number(recentTx.amount || 0))} via {recentTx.method || recentTx.description || 'escrow'}
                       </Text>
                       <Text style={{ fontSize: 11, color: COLORS.TEXT_LIGHT }}>
-                        {new Date(recentTx.date).toLocaleDateString()}
+                        {recentTx.createdAt ? new Date(recentTx.createdAt).toLocaleDateString() : ''}
                       </Text>
                     </View>
                   )}

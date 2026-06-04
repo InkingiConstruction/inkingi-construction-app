@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
+import { useAuthStore } from "@/store/auth.store";
 
 type NotificationItem = {
   id: string;
@@ -14,16 +15,25 @@ type NotificationItem = {
   channel: string;
   status: string;
   createdAt: string;
+  data?: {
+    type?: string;
+    projectId?: string;
+    milestoneId?: string;
+    rfqId?: string;
+    quoteId?: string;
+  } | null;
 };
 
 export function NotificationsScreen() {
   const queryClient = useQueryClient();
+  const role = useAuthStore((state) => state.user?.role);
   const notificationsQuery = useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
       const response = await api.get<NotificationItem[]>(ENDPOINTS.NOTIFICATIONS.LIST);
       return response.data;
     },
+    refetchInterval: 10000,
   });
 
   const markRead = useMutation({
@@ -31,6 +41,40 @@ export function NotificationsScreen() {
       api.put(ENDPOINTS.NOTIFICATIONS.DETAIL(id), { status: "read" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
   });
+
+  const openNotification = (item: NotificationItem) => {
+    markRead.mutate(item.id);
+
+    if (
+      item.data?.milestoneId &&
+      ["milestone_review_requested", "milestone_status_updated"].includes(item.data.type || "")
+    ) {
+      if (role === "supervisor") {
+        router.push({
+          pathname: "/(supervisor)/inspections",
+          params: {
+            projectId: item.data.projectId,
+            milestoneId: item.data.milestoneId,
+          },
+        } as never);
+      } else if (role === "engineer") {
+        router.push({
+          pathname: "/(engineer)/milestones",
+          params: { projectId: item.data.projectId },
+        } as never);
+      } else if (role === "client") {
+        router.push({
+          pathname: "/(client)/milestones",
+          params: { projectId: item.data.projectId },
+        } as never);
+      }
+      return;
+    }
+
+    if ((item.data?.rfqId || item.data?.quoteId) && role === "engineer") {
+      router.push("/(engineer)/rfqs" as never);
+    }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
@@ -72,7 +116,7 @@ export function NotificationsScreen() {
             }
             renderItem={({ item }) => (
               <Pressable
-                onPress={() => markRead.mutate(item.id)}
+                onPress={() => openNotification(item)}
                 style={{
                   backgroundColor: COLORS.SURFACE,
                   borderColor: item.status === "read" ? COLORS.BORDER_LIGHT : COLORS.PRIMARY_LIGHT,

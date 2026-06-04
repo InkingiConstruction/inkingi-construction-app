@@ -27,12 +27,15 @@ export default function EngineerMilestones() {
   const [budgetPercentage, setBudgetPercentage] = useState("");
   const [durationDays, setDurationDays] = useState("");
   const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
+  const [editingMilestoneId, setEditingMilestoneId] = useState("");
+  const [statusActionId, setStatusActionId] = useState("");
 
   const projectsQuery = useQuery({
     queryKey: ["engineer-projects"],
     queryFn: async () =>
       (await api.get<EngineerProject[]>(ENDPOINTS.PROJECTS.LIST)).data.filter(isAcceptedEngineerProject),
     refetchOnMount: "always",
+    refetchInterval: 10000,
   });
 
   const projects = projectsQuery.data || [];
@@ -44,6 +47,7 @@ export default function EngineerMilestones() {
     enabled: Boolean(activeProjectId),
     queryFn: async () =>
       (await api.get<EngineerMilestone[]>(ENDPOINTS.MILESTONES.LIST, { params: { projectId: activeProjectId } })).data,
+    refetchInterval: 10000,
   });
 
   const milestones = milestonesQuery.data || [];
@@ -69,24 +73,64 @@ export default function EngineerMilestones() {
       });
     },
     onSuccess: async () => {
-      setName("");
-      setBudgetPercentage("");
-      setDurationDays("");
-      setAcceptanceCriteria("");
+      resetForm();
       await queryClient.invalidateQueries({ queryKey: ["engineer-milestones"] });
       Alert.alert("Milestone created", "The milestone was added to the project plan.");
     },
     onError: (error) => Alert.alert("Create failed", error instanceof Error ? error.message : "Please try again."),
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) =>
-      api.put(ENDPOINTS.MILESTONES.UPDATE(id), { status }),
+  const resetForm = () => {
+    setEditingMilestoneId("");
+    setName("");
+    setBudgetPercentage("");
+    setDurationDays("");
+    setAcceptanceCriteria("");
+  };
+
+  const updateDetailsMutation = useMutation({
+    mutationFn: async () => {
+      if (!editingMilestoneId) throw new Error("Select a milestone to edit.");
+      if (!name.trim() || !budgetPercentage.trim()) {
+        throw new Error("Milestone name and budget percentage are required.");
+      }
+
+      return api.put(ENDPOINTS.MILESTONES.UPDATE(editingMilestoneId), {
+        name: name.trim(),
+        budgetPercentage: Number(budgetPercentage),
+        durationDays: durationDays.trim() ? Number(durationDays) : undefined,
+        acceptanceCriteria: acceptanceCriteria.trim() || undefined,
+      });
+    },
     onSuccess: async () => {
+      resetForm();
       await queryClient.invalidateQueries({ queryKey: ["engineer-milestones"] });
+      Alert.alert("Milestone updated", "You can resend this milestone for supervisor review.");
     },
     onError: (error) => Alert.alert("Update failed", error instanceof Error ? error.message : "Please try again."),
   });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      setStatusActionId(id);
+      return api.put(ENDPOINTS.MILESTONES.UPDATE(id), { status });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["engineer-milestones"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      Alert.alert("Sent", "The milestone and BOQ package were sent for supervisor review.");
+    },
+    onError: (error) => Alert.alert("Update failed", error instanceof Error ? error.message : "Please try again."),
+    onSettled: () => setStatusActionId(""),
+  });
+
+  const startEdit = (milestone: EngineerMilestone) => {
+    setEditingMilestoneId(milestone.id);
+    setName(milestone.name);
+    setBudgetPercentage(String(milestone.budgetPercentage || ""));
+    setDurationDays(milestone.durationDays ? String(milestone.durationDays) : "");
+    setAcceptanceCriteria(milestone.acceptanceCriteria || milestone.description || "");
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
@@ -126,7 +170,14 @@ export default function EngineerMilestones() {
               </View>
 
               <View style={styles.formCard}>
-                <Text style={styles.cardTitle}>New milestone</Text>
+                <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={styles.cardTitle}>{editingMilestoneId ? "Edit milestone" : "New milestone"}</Text>
+                  {editingMilestoneId ? (
+                    <Pressable onPress={resetForm}>
+                      <Text style={{ color: COLORS.PRIMARY, fontSize: 12, fontWeight: "900" }}>Cancel</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
                 <TextInput
                   placeholder="Milestone name"
                   placeholderTextColor={COLORS.TEXT_LIGHT}
@@ -161,12 +212,27 @@ export default function EngineerMilestones() {
                   style={[styles.input, { minHeight: 86, textAlignVertical: "top" }]}
                 />
                 <Pressable
-                  disabled={createMutation.isPending}
-                  onPress={() => createMutation.mutate()}
-                  style={[styles.primaryButton, createMutation.isPending && { opacity: 0.7 }]}
+                  disabled={createMutation.isPending || updateDetailsMutation.isPending}
+                  onPress={() => (editingMilestoneId ? updateDetailsMutation.mutate() : createMutation.mutate())}
+                  style={[
+                    styles.primaryButton,
+                    (createMutation.isPending || updateDetailsMutation.isPending) && { opacity: 0.7 },
+                  ]}
                 >
-                  <Ionicons name="add-circle-outline" size={19} color={COLORS.TEXT_WHITE} />
-                  <Text style={styles.primaryButtonText}>{createMutation.isPending ? "Creating..." : "Create milestone"}</Text>
+                  <Ionicons
+                    name={editingMilestoneId ? "save-outline" : "add-circle-outline"}
+                    size={19}
+                    color={COLORS.TEXT_WHITE}
+                  />
+                  <Text style={styles.primaryButtonText}>
+                    {editingMilestoneId
+                      ? updateDetailsMutation.isPending
+                        ? "Saving..."
+                        : "Save milestone"
+                      : createMutation.isPending
+                        ? "Creating..."
+                        : "Create milestone"}
+                  </Text>
                 </Pressable>
               </View>
 
@@ -179,7 +245,8 @@ export default function EngineerMilestones() {
                   key={milestone.id}
                   milestone={milestone}
                   projectBudget={Number(activeProject?.budget || 0)}
-                  loading={updateStatusMutation.isPending}
+                  loading={statusActionId === milestone.id && updateStatusMutation.isPending}
+                  onEdit={() => startEdit(milestone)}
                   onSetActive={() => updateStatusMutation.mutate({ id: milestone.id, status: "active" })}
                   onSubmitReview={() => updateStatusMutation.mutate({ id: milestone.id, status: "pending_supervisor" })}
                 />
@@ -260,12 +327,14 @@ function MilestoneCard({
   milestone,
   projectBudget,
   loading,
+  onEdit,
   onSetActive,
   onSubmitReview,
 }: {
   milestone: EngineerMilestone;
   projectBudget: number;
   loading: boolean;
+  onEdit: () => void;
   onSetActive: () => void;
   onSubmitReview: () => void;
 }) {
@@ -295,6 +364,11 @@ function MilestoneCard({
       </View>
 
       <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+        {["active", "revision_required", "pending"].includes(milestone.status) ? (
+          <Pressable disabled={loading} onPress={onEdit} style={styles.secondaryButton}>
+            <Text style={styles.secondaryButtonText}>Edit</Text>
+          </Pressable>
+        ) : null}
         {milestone.status === "pending" ? (
           <Pressable disabled={loading} onPress={onSetActive} style={styles.secondaryButton}>
             <Text style={styles.secondaryButtonText}>Mark active</Text>
@@ -303,7 +377,7 @@ function MilestoneCard({
         {["active", "revision_required"].includes(milestone.status) ? (
           <Pressable disabled={loading} onPress={onSubmitReview} style={styles.primaryButton}>
             <Ionicons name="send-outline" size={17} color={COLORS.TEXT_WHITE} />
-            <Text style={styles.primaryButtonText}>Send for review</Text>
+            <Text style={styles.primaryButtonText}>{loading ? "Sending..." : "Send for review"}</Text>
           </Pressable>
         ) : null}
       </View>

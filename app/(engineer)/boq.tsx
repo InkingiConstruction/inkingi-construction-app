@@ -27,6 +27,7 @@ export default function EngineerBoq() {
     queryKey: ["engineer-projects"],
     queryFn: async () => (await api.get<EngineerProject[]>(ENDPOINTS.PROJECTS.LIST)).data,
     refetchOnMount: "always",
+    refetchInterval: 10000,
   });
 
   const projects = (projectsQuery.data || []).filter(isAcceptedEngineerProject);
@@ -41,6 +42,7 @@ export default function EngineerBoq() {
       });
       return response.data;
     },
+    refetchInterval: 10000,
   });
 
   const milestones = milestonesQuery.data || [];
@@ -55,6 +57,7 @@ export default function EngineerBoq() {
       });
       return response.data;
     },
+    refetchInterval: 10000,
   });
 
   const boqItems = boqQuery.data || [];
@@ -94,10 +97,13 @@ export default function EngineerBoq() {
   const submitMutation = useMutation({
     mutationFn: () => {
       if (!activeMilestoneId) throw new Error("Select a milestone first.");
+      if (boqItems.length === 0) throw new Error("Add at least one BOQ item before sending.");
       return api.put(ENDPOINTS.MILESTONES.DETAIL(activeMilestoneId), { status: "pending_supervisor" });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["engineer-milestones"] });
+      await queryClient.invalidateQueries({ queryKey: ["supervisor-milestones"] });
+      await queryClient.invalidateQueries({ queryKey: ["notifications"] });
       Alert.alert("BOQ sent", "The milestone and BOQ items are now waiting for supervisor review.");
     },
     onError: (error) => Alert.alert("Submit failed", error instanceof Error ? error.message : "Try again."),

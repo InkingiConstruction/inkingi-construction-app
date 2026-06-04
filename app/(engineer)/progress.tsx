@@ -12,19 +12,22 @@ import { EngineerMilestone, EngineerProgressPhoto, EngineerProject } from "@/com
 import { isAcceptedEngineerProject } from "@/components/engineer/engineer-utils";
 import { ProgressMedia, ProgressMediaViewer } from "@/components/shared/progress-media-viewer";
 
+type CapturedMedia = ImagePicker.ImagePickerAsset;
+
 export default function EngineerProgress() {
   const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ projectId?: string }>();
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [selectedMilestoneId, setSelectedMilestoneId] = useState("");
   const [caption, setCaption] = useState("");
-  const [media, setMedia] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [mediaItems, setMediaItems] = useState<CapturedMedia[]>([]);
   const [viewerMedia, setViewerMedia] = useState<ProgressMedia | null>(null);
 
   const projectsQuery = useQuery({
     queryKey: ["engineer-projects"],
     queryFn: async () => (await api.get<EngineerProject[]>(ENDPOINTS.PROJECTS.LIST)).data,
     refetchOnMount: "always",
+    refetchInterval: 10000,
   });
 
   const projects = (projectsQuery.data || []).filter(isAcceptedEngineerProject);
@@ -34,6 +37,7 @@ export default function EngineerProgress() {
     queryKey: ["engineer-milestones", activeProjectId],
     enabled: Boolean(activeProjectId),
     queryFn: async () => (await api.get<EngineerMilestone[]>(ENDPOINTS.MILESTONES.LIST, { params: { projectId: activeProjectId } })).data,
+    refetchInterval: 10000,
   });
 
   const milestones = milestonesQuery.data || [];
@@ -43,46 +47,66 @@ export default function EngineerProgress() {
     queryKey: ["engineer-progress", activeProjectId],
     enabled: Boolean(activeProjectId),
     queryFn: async () => (await api.get<EngineerProgressPhoto[]>(ENDPOINTS.PROGRESS_PHOTOS.LIST, { params: { projectId: activeProjectId } })).data,
+    refetchInterval: 10000,
   });
 
-  const pickMedia = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const captureMedia = async (kind: "photo" | "video") => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("Permission required", "Gallery permission is required to upload progress media.");
+      Alert.alert("Permission required", "Camera permission is required to capture progress media.");
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const result = await ImagePicker.launchCameraAsync({
       allowsEditing: false,
-      mediaTypes: ["images", "videos"],
-      quality: 0.85,
+      mediaTypes: kind === "video" ? ["videos"] : ["images"],
+      quality: kind === "video" ? 0.75 : 0.85,
+      videoMaxDuration: 90,
     });
 
-    if (!result.canceled) setMedia(result.assets[0]);
+    if (!result.canceled) {
+      setMediaItems((current) => [...current, result.assets[0]]);
+    }
+  };
+
+  const removeMedia = (uri: string) => {
+    setMediaItems((current) => current.filter((item) => item.uri !== uri));
   };
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
       if (!activeProjectId) throw new Error("Select a project first.");
-      if (!media) throw new Error("Choose a photo or video first.");
+      if (mediaItems.length === 0) throw new Error("Take progress photos or record a video first.");
 
-      const form = new FormData();
-      form.append("projectId", activeProjectId);
-      if (activeMilestoneId) form.append("milestoneId", activeMilestoneId);
-      if (caption.trim()) form.append("caption", caption.trim());
-      form.append("media", {
-        uri: media.uri,
-        name: media.fileName || `progress-${Date.now()}.${media.type === "video" ? "mp4" : "jpg"}`,
-        type: media.mimeType || (media.type === "video" ? "video/mp4" : "image/jpeg"),
-      } as unknown as Blob);
+      const photoCount = mediaItems.filter((item) => item.type !== "video").length;
+      const hasVideo = mediaItems.some((item) => item.type === "video");
+      if (!hasVideo && photoCount > 0 && photoCount < 3) {
+        throw new Error("Take at least three photos, or record a video.");
+      }
 
-      return api.post(ENDPOINTS.PROGRESS_PHOTOS.CREATE, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      return Promise.all(
+        mediaItems.map((item, index) => {
+          const form = new FormData();
+          form.append("projectId", activeProjectId);
+          if (activeMilestoneId) form.append("milestoneId", activeMilestoneId);
+          if (caption.trim()) {
+            form.append("caption", mediaItems.length > 1 ? `${caption.trim()} (${index + 1}/${mediaItems.length})` : caption.trim());
+          }
+          form.append("media", {
+            uri: item.uri,
+            name: item.fileName || `progress-${Date.now()}-${index}.${item.type === "video" ? "mp4" : "jpg"}`,
+            type: item.mimeType || (item.type === "video" ? "video/mp4" : "image/jpeg"),
+          } as unknown as Blob);
+
+          return api.post(ENDPOINTS.PROGRESS_PHOTOS.CREATE, form, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+        }),
+      );
     },
     onSuccess: async () => {
       setCaption("");
-      setMedia(null);
+      setMediaItems([]);
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ["engineer-progress", activeProjectId] }),
         queryClient.invalidateQueries({ queryKey: ["supervisor-progress"] }),
@@ -125,16 +149,43 @@ export default function EngineerProgress() {
                 onChangeText={setCaption}
                 style={{ backgroundColor: COLORS.MUTED, borderColor: COLORS.BORDER_LIGHT, borderRadius: 8, borderWidth: 1, color: COLORS.TEXT_PRIMARY, paddingHorizontal: 12, paddingVertical: 12 }}
               />
-              {media ? (
-                <Image source={{ uri: media.uri }} style={{ backgroundColor: COLORS.MUTED, borderRadius: 8, height: 160, width: "100%" }} />
+              {mediaItems.length > 0 ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                  {mediaItems.map((item) => (
+                    <View key={item.uri} style={{ borderRadius: 8, overflow: "hidden", position: "relative" }}>
+                      {item.type === "video" ? (
+                        <View style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 104, justifyContent: "center", width: 128 }}>
+                          <Ionicons name="videocam-outline" size={28} color={COLORS.TEXT_WHITE} />
+                          <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 11, fontWeight: "900", marginTop: 4 }}>Video</Text>
+                        </View>
+                      ) : (
+                        <Image source={{ uri: item.uri }} style={{ backgroundColor: COLORS.MUTED, height: 104, width: 128 }} />
+                      )}
+                      <Pressable
+                        onPress={() => removeMedia(item.uri)}
+                        style={{ alignItems: "center", backgroundColor: "rgba(15,23,42,0.78)", borderRadius: 999, height: 26, justifyContent: "center", position: "absolute", right: 6, top: 6, width: 26 }}
+                      >
+                        <Ionicons name="close" size={16} color={COLORS.TEXT_WHITE} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </ScrollView>
               ) : null}
               <View style={{ flexDirection: "row", gap: 10 }}>
-                <Pressable onPress={pickMedia} style={{ alignItems: "center", backgroundColor: COLORS.MUTED, borderRadius: 8, flex: 1, flexDirection: "row", gap: 8, justifyContent: "center", paddingVertical: 13 }}>
-                  <Ionicons name="image-outline" size={18} color={COLORS.PRIMARY_DARK} />
-                  <Text style={{ color: COLORS.PRIMARY_DARK, fontWeight: "900" }}>Choose media</Text>
+                <Pressable onPress={() => captureMedia("photo")} style={{ alignItems: "center", backgroundColor: COLORS.MUTED, borderRadius: 8, flex: 1, flexDirection: "row", gap: 8, justifyContent: "center", paddingVertical: 13 }}>
+                  <Ionicons name="camera-outline" size={18} color={COLORS.PRIMARY_DARK} />
+                  <Text style={{ color: COLORS.PRIMARY_DARK, fontWeight: "900" }}>Photo</Text>
                 </Pressable>
+                <Pressable onPress={() => captureMedia("video")} style={{ alignItems: "center", backgroundColor: COLORS.MUTED, borderRadius: 8, flex: 1, flexDirection: "row", gap: 8, justifyContent: "center", paddingVertical: 13 }}>
+                  <Ionicons name="videocam-outline" size={18} color={COLORS.PRIMARY_DARK} />
+                  <Text style={{ color: COLORS.PRIMARY_DARK, fontWeight: "900" }}>Video</Text>
+                </Pressable>
+              </View>
+              <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable disabled={uploadMutation.isPending} onPress={() => uploadMutation.mutate()} style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY, borderRadius: 8, flex: 1, paddingVertical: 13 }}>
-                  <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>{uploadMutation.isPending ? "Uploading..." : "Upload"}</Text>
+                  <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>
+                    {uploadMutation.isPending ? "Uploading..." : `Upload ${mediaItems.length || ""}`}
+                  </Text>
                 </Pressable>
               </View>
             </View>

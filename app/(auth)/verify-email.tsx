@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
-import { getRoleHome, useAuthStore, User } from "@/store/auth.store";
+import { getPostAuthRoute, useAuthStore, User } from "@/store/auth.store";
 
 export default function VerifyEmail() {
   const params = useLocalSearchParams<{ email?: string }>();
@@ -38,7 +38,7 @@ export default function VerifyEmail() {
         isAuthenticated: true,
       });
       setMessage("Email verified successfully.");
-      router.replace(getRoleHome(response.data.user.role) as never);
+      router.replace(getPostAuthRoute(response.data.user) as never);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed");
     } finally {

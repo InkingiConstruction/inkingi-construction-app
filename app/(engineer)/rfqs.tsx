@@ -25,6 +25,7 @@ export default function EngineerRfqs() {
     queryKey: ["engineer-projects"],
     queryFn: async () => (await api.get<EngineerProject[]>(ENDPOINTS.PROJECTS.LIST)).data,
     refetchOnMount: "always",
+    refetchInterval: 10000,
   });
 
   const projects = (projectsQuery.data || []).filter(isAcceptedEngineerProject);
@@ -34,6 +35,7 @@ export default function EngineerRfqs() {
     queryKey: ["engineer-milestones", activeProjectId],
     enabled: Boolean(activeProjectId),
     queryFn: async () => (await api.get<EngineerMilestone[]>(ENDPOINTS.MILESTONES.LIST, { params: { projectId: activeProjectId } })).data,
+    refetchInterval: 10000,
   });
 
   const milestones = milestonesQuery.data || [];
@@ -43,6 +45,7 @@ export default function EngineerRfqs() {
     queryKey: ["engineer-rfqs", activeProjectId],
     enabled: Boolean(activeProjectId),
     queryFn: async () => (await api.get<EngineerRfq[]>(ENDPOINTS.RFQS.LIST, { params: { projectId: activeProjectId } })).data,
+    refetchInterval: 10000,
   });
 
   const createMutation = useMutation({
@@ -146,6 +149,7 @@ function Selector({
 }
 
 function RfqCard({ rfq }: { rfq: EngineerRfq }) {
+  const quotes = rfq.quotes || [];
   return (
     <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, padding: 16 }}>
       <View style={{ flexDirection: "row", gap: 10 }}>
@@ -153,11 +157,35 @@ function RfqCard({ rfq }: { rfq: EngineerRfq }) {
         <View style={{ flex: 1 }}>
           <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: "900" }}>{rfq.title}</Text>
           <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 4 }}>
-            {rfq.quantity} {rfq.unit} • {rfq.quotes?.length || 0} quotes
+            {rfq.quantity} {rfq.unit} • {quotes.length} quote{quotes.length === 1 ? "" : "s"}
           </Text>
         </View>
         <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>{rfq.status}</Text>
       </View>
+      {quotes.length > 0 ? (
+        <View style={{ borderTopColor: COLORS.BORDER_LIGHT, borderTopWidth: 1, gap: 8, marginTop: 12, paddingTop: 12 }}>
+          {quotes.map((quote) => (
+            <View key={quote.id} style={{ backgroundColor: COLORS.MUTED, borderRadius: 8, padding: 10 }}>
+              <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontSize: 13, fontWeight: "900" }}>
+                  {quote.supplier?.name || "Supplier"}
+                </Text>
+                <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 12, fontWeight: "900" }}>
+                  {Number(quote.totalPrice || 0).toLocaleString()} RWF
+                </Text>
+              </View>
+              <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
+                Unit: {Number(quote.unitPrice || 0).toLocaleString()} RWF • Delivery: {quote.deliveryDays || 0} days • {quote.status || "pending"}
+              </Text>
+              {quote.terms ? (
+                <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
+                  {quote.terms}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }

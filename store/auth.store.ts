@@ -73,6 +73,24 @@ export const getPostAuthRoute = (user?: User | null) => {
     };
   }
 
+  if (user && user.kycStatus !== "approved") {
+    const hasSubmittedForApproval =
+      user.kycStatus === "submitted" ||
+      user.kycStatus === "pending" ||
+      Boolean(user.registrationSubmittedAt);
+
+    return {
+      pathname: "/(auth)/register",
+      params: {
+        step: hasSubmittedForApproval ? "approval-pending" : "continue-signup",
+        role: user.role || "client",
+        email: user.email,
+        fullName: user.name,
+        phoneNumber: user.phoneNumber || user.phone || "",
+      },
+    };
+  }
+
   return getRoleHome(user?.role);
 };
 

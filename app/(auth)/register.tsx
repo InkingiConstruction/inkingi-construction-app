@@ -54,6 +54,8 @@ export interface RegistrationData {
 
 const STORAGE_KEY = "@inkingi_registration_data";
 const RESUME_VERIFY_STEP = "verify-email";
+const APPROVAL_PENDING_STEP = "approval-pending";
+const CONTINUE_SIGNUP_STEP = "continue-signup";
 
 const DEFAULT_DATA = (role: UserRole = "client"): RegistrationData => ({
   basic: { fullName: "", email: "", phoneNumber: "", country: "Rwanda", role },
@@ -142,11 +144,18 @@ export default function RegisterFlow() {
   const paramPhoneNumber = asParam(params.phoneNumber);
   const shouldResumeEmailVerification =
     paramStep === RESUME_VERIFY_STEP && Boolean(paramEmail);
+  const shouldShowApprovalPending =
+    paramStep === APPROVAL_PENDING_STEP && Boolean(paramEmail);
+  const shouldContinueSignup =
+    paramStep === CONTINUE_SIGNUP_STEP && Boolean(paramEmail);
 
   // Step -1 = role selection (fullscreen, no progress bar)
   // Step 0+ = role-specific steps
   const [roleSelected, setRoleSelected] = useState<boolean>(
-    shouldResumeEmailVerification || !!paramRole,
+    shouldResumeEmailVerification ||
+      shouldShowApprovalPending ||
+      shouldContinueSignup ||
+      !!paramRole,
   );
   const [role, setRole] = useState<UserRole>(
     (paramRole as UserRole) || "client",
@@ -167,13 +176,18 @@ export default function RegisterFlow() {
   // Load persisted progress
   useEffect(() => {
     (async () => {
-      if (shouldResumeEmailVerification) {
+      if (shouldResumeEmailVerification || shouldShowApprovalPending || shouldContinueSignup) {
         const resumed = createEmailVerificationResume({
           role: paramRole,
           email: paramEmail,
           fullName: paramFullName,
           phoneNumber: paramPhoneNumber,
         });
+        if (shouldShowApprovalPending || shouldContinueSignup) {
+          resumed.emailVerified = true;
+          resumed.phoneVerified = true;
+          resumed.currentStep = shouldShowApprovalPending ? getSteps(resumed.basic.role).length - 1 : 2;
+        }
         setRole(resumed.basic.role);
         setRoleSelected(true);
         setData(resumed);
@@ -203,7 +217,9 @@ export default function RegisterFlow() {
     paramPhoneNumber,
     paramRole,
     persist,
+    shouldContinueSignup,
     shouldResumeEmailVerification,
+    shouldShowApprovalPending,
   ]);
 
   const handleUpdate = useCallback(

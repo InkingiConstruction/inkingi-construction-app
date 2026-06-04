@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -18,6 +18,27 @@ import { COLORS } from "@/constants/colors";
 import { SupervisorTopBar } from "@/components/supervisor/supervisor-top-bar";
 import { SupervisorMilestone } from "@/components/supervisor/supervisor-types";
 
+type SupervisorMilestoneDetail = SupervisorMilestone & {
+  durationDays?: number | null;
+  boqItems?: {
+    id: string;
+    category: string;
+    name: string;
+    quantity: string | number;
+    unit: string;
+    unitPrice: string | number;
+    totalPrice: string | number;
+    notes?: string | null;
+  }[];
+  inspections?: {
+    id: string;
+    decision?: string | null;
+    notes?: string | null;
+    rating?: number | null;
+    createdAt?: string;
+  }[];
+};
+
 export default function SupervisorInspections() {
   const params = useLocalSearchParams<{ projectId?: string; milestoneId?: string }>();
   const queryClient = useQueryClient();
@@ -34,6 +55,15 @@ export default function SupervisorInspections() {
       });
       return response.data;
     },
+    refetchInterval: 10000,
+  });
+
+  const selectedMilestoneQuery = useQuery({
+    queryKey: ["supervisor-milestone-detail", selectedMilestoneId],
+    enabled: Boolean(selectedMilestoneId),
+    queryFn: async () =>
+      (await api.get<SupervisorMilestoneDetail>(ENDPOINTS.MILESTONES.DETAIL(selectedMilestoneId))).data,
+    refetchInterval: 10000,
   });
 
   const inspectMutation = useMutation({
@@ -53,8 +83,9 @@ export default function SupervisorInspections() {
       setError("");
       setNotes("");
       queryClient.invalidateQueries({ queryKey: ["supervisor-milestones"] });
+      queryClient.invalidateQueries({ queryKey: ["supervisor-milestone-detail", selectedMilestoneId] });
       queryClient.invalidateQueries({ queryKey: ["supervisor-inspections"] });
-      router.push("/(supervisor)/projects");
+      queryClient.invalidateQueries({ queryKey: ["engineer-milestones"] });
     },
     onError: (err) => {
       setError(err instanceof Error ? err.message : "Inspection failed");
@@ -81,6 +112,10 @@ export default function SupervisorInspections() {
             <SupervisorTopBar
               title="Inspect"
               subtitle="Approve a milestone or request revision from the assigned project."
+            />
+            <SelectedMilestoneDetails
+              loading={selectedMilestoneQuery.isLoading}
+              milestone={selectedMilestoneQuery.data}
             />
             <InspectionForm
               notes={notes}
@@ -138,6 +173,98 @@ export default function SupervisorInspections() {
         )}
       />
     </SafeAreaView>
+  );
+}
+
+function SelectedMilestoneDetails({
+  loading,
+  milestone,
+}: {
+  loading: boolean;
+  milestone?: SupervisorMilestoneDetail;
+}) {
+  if (loading) {
+    return (
+      <View style={styles.detailCard}>
+        <ActivityIndicator color={COLORS.PRIMARY} />
+      </View>
+    );
+  }
+
+  if (!milestone) {
+    return (
+      <View style={styles.detailCard}>
+        <Text style={styles.detailTitle}>Select a milestone</Text>
+        <Text style={styles.detailBody}>Choose a milestone below to review its full scope and BOQ package.</Text>
+      </View>
+    );
+  }
+
+  const boqItems = milestone.boqItems || [];
+  const boqTotal = boqItems.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
+  const latestInspection = milestone.inspections?.[0];
+
+  return (
+    <View style={styles.detailCard}>
+      <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.detailEyebrow}>MILESTONE REVIEW</Text>
+          <Text style={styles.detailTitle}>{milestone.name}</Text>
+          <Text style={styles.detailBody}>
+            {milestone.project?.name || "Project"} • {String(milestone.status).replace(/_/g, " ")}
+          </Text>
+        </View>
+        <View style={styles.statusBadge}>
+          <Text style={styles.statusBadgeText}>{String(milestone.status).replace(/_/g, " ").toUpperCase()}</Text>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+        <InfoBox label="Budget" value={`${Number(milestone.budgetPercentage || 0)}%`} />
+        <InfoBox label="Duration" value={`${milestone.durationDays || 0} days`} />
+        <InfoBox label="BOQ total" value={`${Math.round(boqTotal).toLocaleString()} RWF`} />
+      </View>
+
+      <View style={styles.sectionBlock}>
+        <Text style={styles.sectionTitle}>Acceptance criteria</Text>
+        <Text style={styles.detailBody}>{milestone.acceptanceCriteria || milestone.description || "No criteria provided."}</Text>
+      </View>
+
+      <View style={styles.sectionBlock}>
+        <Text style={styles.sectionTitle}>BOQ package</Text>
+        {boqItems.length === 0 ? (
+          <Text style={styles.detailBody}>No BOQ items submitted with this milestone yet.</Text>
+        ) : (
+          boqItems.map((item) => (
+            <View key={item.id} style={styles.boqRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.boqName}>{item.name}</Text>
+                <Text style={styles.detailBody}>
+                  {item.category} • {item.quantity} {item.unit} x {Number(item.unitPrice || 0).toLocaleString()} RWF
+                </Text>
+              </View>
+              <Text style={styles.boqAmount}>{Number(item.totalPrice || 0).toLocaleString()} RWF</Text>
+            </View>
+          ))
+        )}
+      </View>
+
+      {latestInspection?.notes ? (
+        <View style={styles.sectionBlock}>
+          <Text style={styles.sectionTitle}>Last supervisor comment</Text>
+          <Text style={styles.detailBody}>{latestInspection.notes}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function InfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.infoBox}>
+      <Text style={styles.infoLabel}>{label.toUpperCase()}</Text>
+      <Text numberOfLines={1} style={styles.infoValue}>{value}</Text>
+    </View>
   );
 }
 
@@ -236,3 +363,88 @@ function DecisionButton({ label, color, disabled, onPress }: { label: string; co
     </Pressable>
   );
 }
+
+const styles = {
+  detailCard: {
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 14,
+    padding: 16,
+  },
+  detailEyebrow: {
+    color: COLORS.PRIMARY,
+    fontSize: 10,
+    fontWeight: "900" as const,
+  },
+  detailTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 18,
+    fontWeight: "900" as const,
+    marginTop: 3,
+  },
+  detailBody: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 3,
+  },
+  statusBadge: {
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  statusBadgeText: {
+    color: COLORS.PRIMARY,
+    fontSize: 9,
+    fontWeight: "900" as const,
+  },
+  infoBox: {
+    backgroundColor: COLORS.MUTED,
+    borderRadius: 8,
+    flex: 1,
+    padding: 10,
+  },
+  infoLabel: {
+    color: COLORS.TEXT_LIGHT,
+    fontSize: 9,
+    fontWeight: "900" as const,
+  },
+  infoValue: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 12,
+    fontWeight: "900" as const,
+    marginTop: 4,
+  },
+  sectionBlock: {
+    borderTopColor: COLORS.BORDER_LIGHT,
+    borderTopWidth: 1,
+    marginTop: 14,
+    paddingTop: 12,
+  },
+  sectionTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 13,
+    fontWeight: "900" as const,
+  },
+  boqRow: {
+    alignItems: "flex-start" as const,
+    borderBottomColor: COLORS.BORDER_LIGHT,
+    borderBottomWidth: 1,
+    flexDirection: "row" as const,
+    gap: 10,
+    paddingVertical: 10,
+  },
+  boqName: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 13,
+    fontWeight: "900" as const,
+  },
+  boqAmount: {
+    color: COLORS.PRIMARY_DARK,
+    fontSize: 12,
+    fontWeight: "900" as const,
+  },
+};

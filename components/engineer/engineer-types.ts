@@ -78,7 +78,16 @@ export type EngineerRfq = {
   status: string;
   project?: EngineerProject;
   milestone?: EngineerMilestone;
-  quotes?: unknown[];
+  quotes?: {
+    id: string;
+    unitPrice?: string | number;
+    totalPrice?: string | number;
+    deliveryDays?: number | null;
+    warrantyMonths?: number | null;
+    terms?: string | null;
+    status?: string;
+    supplier?: EngineerUser;
+  }[];
 };
 
 export type EngineerProgressPhoto = {
