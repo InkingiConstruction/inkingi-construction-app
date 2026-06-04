@@ -26,6 +26,7 @@ export const ENDPOINTS = {
     LIST: "/projects",
     CREATE: "/projects",
     DETAIL: (id: string) => `/projects/${id}`,
+    STATUS: (id: string) => `/projects/${id}/status`,
   },
   PROJECT_MEMBERS: {
     LIST: "/project-members",

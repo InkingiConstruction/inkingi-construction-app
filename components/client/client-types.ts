@@ -60,6 +60,7 @@ export type ClientProgressPhoto = {
   id: string;
   projectId: string;
   milestoneId?: string | null;
+  progressGroupId?: string | null;
   cloudinaryUrl: string;
   caption?: string | null;
   isVideo?: boolean;

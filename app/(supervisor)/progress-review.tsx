@@ -11,13 +11,23 @@ import { SupervisorTopBar } from "@/components/supervisor/supervisor-top-bar";
 import { SupervisorProgressPhoto } from "@/components/supervisor/supervisor-types";
 import { ProgressMedia, ProgressMediaViewer } from "@/components/shared/progress-media-viewer";
 
+type ProgressGroup = {
+  id: string;
+  items: SupervisorProgressPhoto[];
+  representative: SupervisorProgressPhoto;
+  mediaCount: number;
+  photoCount: number;
+  videoCount: number;
+  status: "pending" | "approved" | "rejected";
+};
+
 export default function ProgressReview() {
   const params = useLocalSearchParams<{ projectId?: string }>();
   const queryClient = useQueryClient();
   const [commentsById, setCommentsById] = useStateMap();
   const [viewerMedia, setViewerMedia] = useState<ProgressMedia | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState(params.projectId || "");
-  const [selectedProgressId, setSelectedProgressId] = useState("");
+  const [selectedProgressGroupId, setSelectedProgressGroupId] = useState("");
 
   const progressQuery = useQuery({
     queryKey: ["supervisor-progress", params.projectId],
@@ -33,18 +43,22 @@ export default function ProgressReview() {
 
   const reviewProgress = useMutation({
     mutationFn: ({
-      id,
+      ids,
       reviewStatus,
       supervisorComment,
     }: {
-      id: string;
+      ids: string[];
       reviewStatus: "approved" | "rejected";
       supervisorComment: string;
     }) =>
-      api.put(ENDPOINTS.PROGRESS_PHOTOS.DETAIL(id), {
-        reviewStatus,
-        supervisorComment,
-      }),
+      Promise.all(
+        ids.map((id) =>
+          api.put(ENDPOINTS.PROGRESS_PHOTOS.DETAIL(id), {
+            reviewStatus,
+            supervisorComment,
+          }),
+        ),
+      ),
     onSuccess: async () => {
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ["supervisor-progress"] }),
@@ -56,10 +70,12 @@ export default function ProgressReview() {
   });
 
   const progress = useMemo(() => progressQuery.data ?? [], [progressQuery.data]);
+  const progressGroups = useMemo(() => groupProgress(progress), [progress]);
   const projects = useMemo(() => {
     const projectMap = new Map<string, { id: string; name: string; count: number; pending: number }>();
 
-    for (const item of progress) {
+    for (const group of progressGroups) {
+      const item = group.representative;
       const id = item.projectId;
       const current = projectMap.get(id) || {
         id,
@@ -68,24 +84,24 @@ export default function ProgressReview() {
         pending: 0,
       };
       current.count += 1;
-      if (!item.reviewStatus || item.reviewStatus === "pending") current.pending += 1;
+      if (group.status === "pending") current.pending += 1;
       projectMap.set(id, current);
     }
 
     return [...projectMap.values()];
-  }, [progress]);
+  }, [progressGroups]);
   const activeProjectId = selectedProjectId || projects[0]?.id || "";
   const activeProject = projects.find((project) => project.id === activeProjectId);
   const projectProgress = activeProjectId
-    ? progress.filter((item) => item.projectId === activeProjectId)
-    : progress;
-  const selectedProgress = progress.find((item) => item.id === selectedProgressId);
+    ? progressGroups.filter((group) => group.representative.projectId === activeProjectId)
+    : progressGroups;
+  const selectedProgressGroup = progressGroups.find((group) => group.id === selectedProgressGroupId);
 
   const openProgress = (id: string) => {
-    setSelectedProgressId(id);
+    setSelectedProgressGroupId(id);
   };
 
-  const closeSheet = () => setSelectedProgressId("");
+  const closeSheet = () => setSelectedProgressGroupId("");
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
@@ -132,16 +148,18 @@ export default function ProgressReview() {
           />
         }
         renderItem={({ item }) => {
+          const group = item;
+          const representative = group.representative;
           const media = {
-            url: item.cloudinaryUrl,
-            isVideo: item.isVideo,
-            title: item.milestone?.name || item.project?.name || "Project progress",
-            caption: item.caption,
+            url: representative.cloudinaryUrl,
+            isVideo: representative.isVideo,
+            title: representative.milestone?.name || representative.project?.name || "Project progress",
+            caption: representative.caption,
           };
 
           return (
-            <Pressable onPress={() => openProgress(item.id)} style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, overflow: "hidden" }}>
-              {item.isVideo ? (
+            <Pressable onPress={() => openProgress(group.id)} style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, overflow: "hidden" }}>
+              {representative.isVideo ? (
                 <Pressable
                   onPress={() => setViewerMedia(media)}
                   style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 190, justifyContent: "center" }}
@@ -151,28 +169,28 @@ export default function ProgressReview() {
                 </Pressable>
               ) : (
                 <Pressable onPress={() => setViewerMedia(media)}>
-                  <Image source={{ uri: item.cloudinaryUrl }} style={{ backgroundColor: COLORS.MUTED, height: 210, width: "100%" }} />
+                  <Image source={{ uri: representative.cloudinaryUrl }} style={{ backgroundColor: COLORS.MUTED, height: 210, width: "100%" }} />
                 </Pressable>
               )}
 
               <View style={{ padding: 16 }}>
                 <View style={{ alignItems: "center", flexDirection: "row", gap: 12 }}>
                   <View style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 8, height: 42, justifyContent: "center", width: 42 }}>
-                    <Ionicons name={item.isVideo ? "videocam-outline" : "image-outline"} size={22} color={COLORS.PRIMARY_DARK} />
+                    <Ionicons name={representative.isVideo ? "videocam-outline" : "image-outline"} size={22} color={COLORS.PRIMARY_DARK} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>
-                      {item.milestone?.name || item.project?.name || "Project progress"}
+                      {representative.milestone?.name || representative.project?.name || "Project progress"}
                     </Text>
                     <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 4 }}>
-                      Uploaded by {item.uploadedBy?.name || "engineer"}
+                      Uploaded by {representative.uploadedBy?.name || "engineer"} • {group.mediaCount} media
                     </Text>
                   </View>
-                  <StatusBadge status={item.reviewStatus || "pending"} />
+                  <StatusBadge status={group.status} />
                 </View>
 
                 <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20, marginTop: 12 }}>
-                  {item.caption || "No caption provided."}
+                  {representative.caption || "No caption provided."}
                 </Text>
                 <View style={styles.openHint}>
                   <Text style={styles.openHintText}>Tap for full review</Text>
@@ -184,26 +202,26 @@ export default function ProgressReview() {
         }}
       />
       <ProgressReviewSheet
-        comment={selectedProgress ? commentsById[selectedProgress.id] ?? selectedProgress.supervisorComment ?? "" : ""}
-        item={selectedProgress}
+        comment={selectedProgressGroup ? commentsById[selectedProgressGroup.id] ?? selectedProgressGroup.representative.supervisorComment ?? "" : ""}
+        group={selectedProgressGroup}
         loading={reviewProgress.isPending}
-        visible={Boolean(selectedProgress)}
+        visible={Boolean(selectedProgressGroup)}
         onApprove={(comment) => {
-          if (!selectedProgress) return;
+          if (!selectedProgressGroup) return;
           reviewProgress.mutate({
-            id: selectedProgress.id,
+            ids: selectedProgressGroup.items.map((item) => item.id),
             reviewStatus: "approved",
             supervisorComment: comment.trim() || "Progress approved.",
           });
           closeSheet();
         }}
         onClose={closeSheet}
-        onCommentChange={(value) => selectedProgress && setCommentsById(selectedProgress.id, value)}
+        onCommentChange={(value) => selectedProgressGroup && setCommentsById(selectedProgressGroup.id, value)}
         onOpenMedia={setViewerMedia}
         onReject={(comment) => {
-          if (!selectedProgress) return;
+          if (!selectedProgressGroup) return;
           reviewProgress.mutate({
-            id: selectedProgress.id,
+            ids: selectedProgressGroup.items.map((item) => item.id),
             reviewStatus: "rejected",
             supervisorComment: comment.trim(),
           });
@@ -213,6 +231,35 @@ export default function ProgressReview() {
       <ProgressMediaViewer media={viewerMedia} onClose={() => setViewerMedia(null)} />
     </SafeAreaView>
   );
+}
+
+function groupProgress(items: SupervisorProgressPhoto[]): ProgressGroup[] {
+  const grouped = new Map<string, SupervisorProgressPhoto[]>();
+
+  for (const item of items) {
+    const groupId = item.progressGroupId || item.id;
+    grouped.set(groupId, [...(grouped.get(groupId) || []), item]);
+  }
+
+  return [...grouped.entries()]
+    .map(([id, groupItems]) => {
+      const ordered = [...groupItems].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      const representative = ordered[0];
+      const hasRejected = ordered.some((item) => item.reviewStatus === "rejected");
+      const allApproved = ordered.every((item) => item.reviewStatus === "approved");
+      const videoCount = ordered.filter((item) => item.isVideo).length;
+      const status: ProgressGroup["status"] = hasRejected ? "rejected" : allApproved ? "approved" : "pending";
+      return {
+        id,
+        items: ordered,
+        representative,
+        mediaCount: ordered.length,
+        photoCount: ordered.length - videoCount,
+        videoCount,
+        status,
+      };
+    })
+    .sort((a, b) => new Date(b.representative.createdAt).getTime() - new Date(a.representative.createdAt).getTime());
 }
 
 function ProjectPicker({
@@ -251,7 +298,7 @@ function ProjectPicker({
 
 function ProgressReviewSheet({
   visible,
-  item,
+  group,
   comment,
   loading,
   onClose,
@@ -261,7 +308,7 @@ function ProgressReviewSheet({
   onReject,
 }: {
   visible: boolean;
-  item?: SupervisorProgressPhoto;
+  group?: ProgressGroup;
   comment: string;
   loading: boolean;
   onClose: () => void;
@@ -270,14 +317,9 @@ function ProgressReviewSheet({
   onApprove: (comment: string) => void;
   onReject: (comment: string) => void;
 }) {
-  if (!item) return null;
+  if (!group) return null;
 
-  const media = {
-    url: item.cloudinaryUrl,
-    isVideo: item.isVideo,
-    title: item.milestone?.name || item.project?.name || "Project progress",
-    caption: item.caption,
-  };
+  const item = group.representative;
   const rejectDisabled = loading || !comment.trim();
 
   return (
@@ -290,6 +332,9 @@ function ProgressReviewSheet({
             <View style={{ flex: 1 }}>
               <Text style={styles.sheetEyebrow}>PROGRESS DETAIL</Text>
               <Text style={styles.sheetTitle}>{item.milestone?.name || item.project?.name || "Project progress"}</Text>
+              <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 4 }}>
+                {group.mediaCount} media item{group.mediaCount === 1 ? "" : "s"} • {group.photoCount} photo{group.photoCount === 1 ? "" : "s"} • {group.videoCount} video{group.videoCount === 1 ? "" : "s"}
+              </Text>
             </View>
             <Pressable onPress={onClose} style={styles.closeButton}>
               <Ionicons name="close" size={20} color={COLORS.TEXT_PRIMARY} />
@@ -297,23 +342,36 @@ function ProgressReviewSheet({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
-            <Pressable onPress={() => onOpenMedia(media)} style={styles.sheetMedia}>
-              {item.isVideo ? (
-                <>
-                  <Ionicons name="play-circle-outline" size={56} color={COLORS.TEXT_WHITE} />
-                  <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>Open video</Text>
-                </>
-              ) : (
-                <Image source={{ uri: item.cloudinaryUrl }} style={{ height: 220, width: "100%" }} />
-              )}
-            </Pressable>
+            <View style={{ gap: 10, marginTop: 16 }}>
+              {group.items.map((mediaItem, index) => {
+                const media = {
+                  url: mediaItem.cloudinaryUrl,
+                  isVideo: mediaItem.isVideo,
+                  title: mediaItem.milestone?.name || mediaItem.project?.name || "Project progress",
+                  caption: mediaItem.caption,
+                };
+
+                return (
+                  <Pressable key={mediaItem.id} onPress={() => onOpenMedia(media)} style={styles.sheetMedia}>
+                    {mediaItem.isVideo ? (
+                      <>
+                        <Ionicons name="play-circle-outline" size={56} color={COLORS.TEXT_WHITE} />
+                        <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>Open video {index + 1}</Text>
+                      </>
+                    ) : (
+                      <Image source={{ uri: mediaItem.cloudinaryUrl }} style={{ height: 220, width: "100%" }} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
 
             <View style={styles.detailCard}>
               <InfoLine label="Project" value={item.project?.name || "Project"} />
               <InfoLine label="Milestone" value={item.milestone?.name || "Not linked"} />
               <InfoLine label="Uploaded by" value={item.uploadedBy?.name || "Engineer"} />
-              <InfoLine label="Type" value={item.isVideo ? "Video" : "Photo"} />
-              <InfoLine label="Status" value={item.reviewStatus || "pending"} />
+              <InfoLine label="Media" value={`${group.photoCount} photo${group.photoCount === 1 ? "" : "s"}, ${group.videoCount} video${group.videoCount === 1 ? "" : "s"}`} />
+              <InfoLine label="Status" value={group.status} />
             </View>
 
             <View style={styles.detailCard}>

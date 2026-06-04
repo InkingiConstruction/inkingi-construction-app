@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
+import { StatusBar } from "expo-status-bar";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
@@ -63,6 +64,7 @@ type ChatConversation = {
   subtitle?: string;
   participants: ChatParticipant[];
   lastMessage?: ProjectMessage | null;
+  unreadCount?: number;
 };
 
 export function MessagesScreen() {
@@ -72,42 +74,67 @@ export function MessagesScreen() {
   const [content, setContent] = useState("");
   const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [error, setError] = useState("");
-  const [editingMessage, setEditingMessage] = useState<ProjectMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ProjectMessage | null>(
+    null,
+  );
   const [previewImage, setPreviewImage] = useState<ProjectMessage | null>(null);
   const [showMentions, setShowMentions] = useState(false);
+  const [search, setSearch] = useState("");
 
   const conversationsQuery = useQuery({
     queryKey: ["chat-conversations"],
     queryFn: async () => {
-      const response = await api.get<ChatConversation[]>(ENDPOINTS.MESSAGES.CONVERSATIONS);
+      const response = await api.get<ChatConversation[]>(
+        ENDPOINTS.MESSAGES.CONVERSATIONS,
+      );
       return response.data;
     },
   });
 
   const conversations = conversationsQuery.data || [];
-  const activeConversation =
-    conversations.find((conversation) => conversation.id === selectedConversationId) ||
-    conversations[0];
+
+  const filteredConversations = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return conversations;
+    return conversations.filter((conversation) => {
+      const participantText = conversation.participants
+        .map(
+          (participant) =>
+            `${participant.name} ${participant.email} ${participant.role}`,
+        )
+        .join(" ");
+      return `${conversation.title} ${conversation.subtitle || ""} ${participantText}`
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [conversations, search]);
+  const activeConversation = conversations.find(
+    (conversation) => conversation.id === selectedConversationId,
+  );
 
   const messagesQuery = useQuery({
     queryKey: ["messages", activeConversation?.id],
     enabled: Boolean(activeConversation),
     queryFn: async () => {
-      const response = await api.get<ProjectMessage[]>(ENDPOINTS.MESSAGES.LIST, {
-        params:
-          activeConversation?.type === "group"
-            ? { projectId: activeConversation.projectId }
-            : { recipientId: activeConversation?.recipientId },
-      });
+      const response = await api.get<ProjectMessage[]>(
+        ENDPOINTS.MESSAGES.LIST,
+        {
+          params:
+            activeConversation?.type === "group"
+              ? { projectId: activeConversation.projectId }
+              : { recipientId: activeConversation?.recipientId },
+        },
+      );
       return response.data;
     },
   });
 
   const messages = messagesQuery.data || [];
-  const activeTitle = activeConversation?.title || "Select Chat";
+  const activeTitle = activeConversation?.title || "Chat Messages";
   const activeSubtitle = useMemo(() => {
-    if (!activeConversation) return "No conversation selected";
-    if (activeConversation.type === "direct") return activeConversation.subtitle || "Direct message";
+    if (!activeConversation) return "Select a conversation";
+    if (activeConversation.type === "direct")
+      return activeConversation.subtitle || "Direct message";
     const members = activeConversation.participants
       .filter((participant) => participant.id !== user?.id)
       .map((participant) => participant.name || participant.email)
@@ -141,7 +168,8 @@ export function MessagesScreen() {
       }
 
       const formData = new FormData();
-      const fileName = image.fileName || image.uri.split("/").pop() || "chat-image.jpg";
+      const fileName =
+        image.fileName || image.uri.split("/").pop() || "chat-image.jpg";
       const mimeType = image.mimeType || "image/jpeg";
 
       if (activeConversation?.type === "group") {
@@ -198,7 +226,8 @@ export function MessagesScreen() {
   });
 
   const deleteMessage = useMutation({
-    mutationFn: async (messageId: string) => api.delete(ENDPOINTS.MESSAGES.DETAIL(messageId)),
+    mutationFn: async (messageId: string) =>
+      api.delete(ENDPOINTS.MESSAGES.DETAIL(messageId)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages"] });
       queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
@@ -264,338 +293,651 @@ export function MessagesScreen() {
     if (!previewImage?.photoUrl) return;
 
     try {
-      const extension = previewImage.photoUrl.split("?")[0].split(".").pop() || "jpg";
+      const extension =
+        previewImage.photoUrl.split("?")[0].split(".").pop() || "jpg";
       const target = `${FileSystem.documentDirectory}inkingi-chat-${previewImage.id}.${extension}`;
-      const result = await FileSystem.downloadAsync(previewImage.photoUrl, target);
-      Alert.alert("Image downloaded", `Saved inside the app files:\n${result.uri}`);
+      const result = await FileSystem.downloadAsync(
+        previewImage.photoUrl,
+        target,
+      );
+      Alert.alert(
+        "Image downloaded",
+        `Saved inside the app files:\n${result.uri}`,
+      );
     } catch (err) {
-      Alert.alert("Download failed", err instanceof Error ? err.message : "Try again.");
+      Alert.alert(
+        "Download failed",
+        err instanceof Error ? err.message : "Try again.",
+      );
     }
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.SURFACE }}>
+    <SafeAreaView
+      style={{
+        flex: 1,
+        backgroundColor: activeConversation ? "#EEF2EF" : COLORS.BACKGROUND,
+      }}
+    >
+      <StatusBar hidden={false} style="dark" backgroundColor="#FFFFFF" translucent={false} />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
-        <View style={{ flex: 1, backgroundColor: "#FAFBFC" }}>
-          <DottedBackground />
-          <View
-            style={{
-              alignItems: "center",
-              flexDirection: "row",
-              justifyContent: "space-between",
-              paddingHorizontal: 18,
-              paddingTop: 12,
-              zIndex: 2,
-            }}
-          >
-            <Pressable onPress={() => router.back()} style={headerButtonStyle}>
-              <Ionicons name="arrow-back" size={21} color={COLORS.TEXT_PRIMARY} />
-            </Pressable>
-            <View
-              style={{
-                alignItems: "center",
-                backgroundColor: "#EEF2F7",
-                borderRadius: 18,
-                gap: 6,
-                paddingHorizontal: 18,
-                paddingVertical: 10,
-              }}
-            >
-              <Text numberOfLines={1} style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "800", maxWidth: 150 }}>
-                {activeTitle}
-              </Text>
-              <Text numberOfLines={1} style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11, maxWidth: 180 }}>
-                {activeConversation?.type === "group" ? "Group" : "Direct"} · {activeSubtitle}
-              </Text>
-            </View>
-            <Pressable style={headerButtonStyle}>
-              <Ionicons name="ellipsis-horizontal" size={21} color={COLORS.TEXT_PRIMARY} />
-            </Pressable>
-          </View>
-
-          {conversationsQuery.isLoading || messagesQuery.isLoading ? (
-            <View style={{ alignItems: "center", flex: 1, justifyContent: "center" }}>
-              <ActivityIndicator color={COLORS.PRIMARY} />
-            </View>
-          ) : (
-            <FlatList
-              data={messages}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={{
-                gap: 12,
-                paddingBottom: 178,
-                paddingHorizontal: 16,
-                paddingTop: 26,
-              }}
-              refreshControl={
-                <RefreshControl
-                  refreshing={messagesQuery.isRefetching}
-                  onRefresh={messagesQuery.refetch}
-                  tintColor={COLORS.PRIMARY}
-                />
-              }
-              ListEmptyComponent={
-                <View style={{ alignItems: "center", paddingTop: 120 }}>
-                  <View style={{ ...headerButtonStyle, height: 54, width: 54 }}>
-                    <Ionicons name="chatbubbles-outline" size={25} color={COLORS.TEXT_LIGHT} />
-                  </View>
-                  <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: "900", marginTop: 14 }}>
-                    No messages yet
-                  </Text>
-                  <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20, marginTop: 6, textAlign: "center" }}>
-                    Open a project group or direct chat and start the conversation.
-                  </Text>
-                </View>
-              }
-              renderItem={({ item }) => {
-                const isMine = item.sender?.id === user?.id;
-                return (
-                  <ChatBubble
-                    item={item}
-                    isMine={isMine}
-                    onDelete={confirmDelete}
-                    onEdit={startEdit}
-                    onOpenImage={setPreviewImage}
-                  />
-                );
-              }}
-            />
-          )}
-
-          <View
-            style={{
-              bottom: 18,
-              left: 14,
-              position: "absolute",
-              right: 14,
-              zIndex: 3,
-              }}
-            >
-            <View
-              style={{
-                backgroundColor: COLORS.SURFACE,
-                borderColor: COLORS.BORDER_LIGHT,
-                borderRadius: 22,
-                borderWidth: 1,
-                padding: 10,
-                shadowColor: "#0F172A",
-                shadowOpacity: 0.08,
-                shadowRadius: 18,
-              }}
-            >
-              <FlatList
-                data={conversations}
-                horizontal
-                keyExtractor={(item) => item.id}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 8, paddingBottom: 8 }}
-                ListEmptyComponent={
-                  <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 12, paddingHorizontal: 8 }}>
-                    No chats available
-                  </Text>
-                }
-                renderItem={({ item }) => {
-                  const selected = item.id === activeConversation?.id;
-                  return (
-                    <Pressable
-                      onPress={() => setSelectedConversationId(item.id)}
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: activeConversation ? "#EEF2EF" : COLORS.BACKGROUND,
+          }}
+        >
+          {!activeConversation ? (
+            <View style={{ flex: 1 }}>
+              <View
+                style={{
+                  backgroundColor: COLORS.SURFACE,
+                  borderBottomColor: COLORS.BORDER_LIGHT,
+                  borderBottomWidth: 1,
+                  paddingBottom: 14,
+                }}
+              >
+                <View
+                  style={{
+                    alignItems: "center",
+                    flexDirection: "row",
+                    gap: 12,
+                    paddingHorizontal: 12,
+                    paddingTop: 4,
+                  }}
+                >
+                  <Pressable
+                    onPress={() => router.back()}
+                    style={{
+                      alignItems: "center",
+                      borderRadius: 999,
+                      height: 36,
+                      justifyContent: "center",
+                      width: 36,
+                    }}
+                  >
+                    <Ionicons
+                      name="chevron-back"
+                      size={22}
+                      color={COLORS.PRIMARY_DARK}
+                    />
+                  </Pressable>
+                  <View style={{ flex: 1 }}>
+                    <Text
                       style={{
-                        backgroundColor: selected ? COLORS.PRIMARY : "#EEF2F7",
-                        borderRadius: 14,
-                        flexDirection: "row",
-                        gap: 6,
-                        alignItems: "center",
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
+                        color: COLORS.TEXT_PRIMARY,
+                        fontSize: 22,
+                        fontWeight: "900",
                       }}
                     >
-                      <Ionicons
-                        name={item.type === "group" ? "people-outline" : "person-outline"}
-                        size={14}
-                        color={selected ? COLORS.TEXT_WHITE : COLORS.TEXT_PRIMARY}
-                      />
-                      <Text
-                        numberOfLines={1}
-                        style={{
-                          color: selected ? COLORS.TEXT_WHITE : COLORS.TEXT_PRIMARY,
-                          fontSize: 12,
-                          fontWeight: "800",
-                          maxWidth: 130,
-                        }}
-                      >
-                        {item.title}
-                      </Text>
-                    </Pressable>
-                  );
-                }}
-              />
-              {showMentions ? (
+                      Chat
+                    </Text>
+                    <Text
+                      style={{
+                        color: COLORS.TEXT_SECONDARY,
+                        fontSize: 12,
+                        marginTop: 2,
+                      }}
+                    >
+                      Project groups and direct messages
+                    </Text>
+                  </View>
+                  <View
+                    style={{
+                      alignItems: "center",
+                      backgroundColor: COLORS.PRIMARY_LIGHT,
+                      borderRadius: 999,
+                      height: 36,
+                      justifyContent: "center",
+                      width: 36,
+                    }}
+                  >
+                    <Ionicons
+                      name="chatbubbles-outline"
+                      size={19}
+                      color={COLORS.PRIMARY_DARK}
+                    />
+                  </View>
+                </View>
+
+                <View
+                  style={{
+                    alignItems: "center",
+                    backgroundColor: COLORS.MUTED,
+                    borderColor: COLORS.BORDER_LIGHT,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    flexDirection: "row",
+                    gap: 8,
+                    marginHorizontal: 16,
+                    marginTop: 14,
+                    paddingHorizontal: 12,
+                    paddingVertical: 9,
+                  }}
+                >
+                  <Ionicons
+                    name="search-outline"
+                    size={17}
+                    color={COLORS.TEXT_LIGHT}
+                  />
+                  <TextInput
+                    onChangeText={setSearch}
+                    placeholder="Search messages"
+                    placeholderTextColor={COLORS.TEXT_LIGHT}
+                    style={{
+                      color: COLORS.TEXT_PRIMARY,
+                      flex: 1,
+                      fontSize: 13,
+                      padding: 0,
+                    }}
+                    value={search}
+                  />
+                </View>
+              </View>
+
+              {conversationsQuery.isLoading ? (
+                <View
+                  style={{
+                    alignItems: "center",
+                    flex: 1,
+                    justifyContent: "center",
+                  }}
+                >
+                  <ActivityIndicator color={COLORS.PRIMARY} />
+                </View>
+              ) : (
                 <FlatList
-                  data={mentionParticipants}
-                  horizontal
+                  data={filteredConversations}
                   keyExtractor={(item) => item.id}
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 8, paddingBottom: 8 }}
+                  contentContainerStyle={{
+                    gap: 10,
+                    padding: 16,
+                    paddingBottom: 120,
+                  }}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={conversationsQuery.isRefetching}
+                      onRefresh={conversationsQuery.refetch}
+                      tintColor={COLORS.PRIMARY}
+                    />
+                  }
                   ListEmptyComponent={
-                    <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 12, paddingHorizontal: 8 }}>
-                      No one to tag in this chat
+                    <Text
+                      style={{
+                        color: COLORS.TEXT_SECONDARY,
+                        padding: 24,
+                        textAlign: "center",
+                      }}
+                    >
+                      No chats available.
                     </Text>
                   }
                   renderItem={({ item }) => (
-                    <Pressable
-                      onPress={() => insertMention(item)}
-                      style={{
-                        alignItems: "center",
-                        backgroundColor: COLORS.PRIMARY_LIGHT,
-                        borderRadius: 14,
-                        flexDirection: "row",
-                        gap: 7,
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
+                    <ConversationRow
+                      conversation={item}
+                      currentUserId={user?.id}
+                      onPress={() => {
+                        setSelectedConversationId(item.id);
+                        setError("");
                       }}
-                    >
-                      <View
+                    />
+                  )}
+                />
+              )}
+            </View>
+          ) : (
+            <>
+              <View
+                style={{
+                  alignItems: "center",
+                  backgroundColor: COLORS.SURFACE,
+                  borderBottomColor: COLORS.BORDER_LIGHT,
+                  borderBottomWidth: 1,
+                  flexDirection: "row",
+                  gap: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 9,
+                }}
+              >
+                <Pressable
+                  onPress={() => {
+                    setSelectedConversationId("");
+                    setEditingMessage(null);
+                    setContent("");
+                    setImage(null);
+                  }}
+                  style={{
+                    alignItems: "center",
+                    borderRadius: 999,
+                    height: 36,
+                    justifyContent: "center",
+                    width: 36,
+                  }}
+                >
+                  <Ionicons
+                    name="chevron-back"
+                    size={22}
+                    color={COLORS.PRIMARY_DARK}
+                  />
+                </Pressable>
+                <Avatar
+                  conversation={activeConversation}
+                  currentUserId={user?.id}
+                  size={36}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: COLORS.TEXT_PRIMARY,
+                      fontSize: 15,
+                      fontWeight: "900",
+                    }}
+                  >
+                    {activeTitle}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11 }}
+                  >
+                    {activeConversation.type === "group"
+                      ? activeSubtitle
+                      : "Online"}
+                  </Text>
+                </View>
+                <Pressable
+                  style={{
+                    alignItems: "center",
+                    borderRadius: 999,
+                    height: 36,
+                    justifyContent: "center",
+                    width: 36,
+                  }}
+                >
+                  <Ionicons
+                    name="ellipsis-vertical"
+                    size={18}
+                    color={COLORS.TEXT_SECONDARY}
+                  />
+                </Pressable>
+              </View>
+
+              {messagesQuery.isLoading ? (
+                <View
+                  style={{
+                    alignItems: "center",
+                    flex: 1,
+                    justifyContent: "center",
+                  }}
+                >
+                  <ActivityIndicator color={COLORS.PRIMARY} />
+                </View>
+              ) : (
+                <FlatList
+                  data={messages}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={{
+                    gap: 8,
+                    paddingBottom: 98,
+                    paddingHorizontal: 14,
+                    paddingTop: 16,
+                  }}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={messagesQuery.isRefetching}
+                      onRefresh={messagesQuery.refetch}
+                      tintColor={COLORS.PRIMARY}
+                    />
+                  }
+                  ListEmptyComponent={
+                    <View style={{ alignItems: "center", paddingTop: 120 }}>
+                      <Ionicons
+                        name="chatbubbles-outline"
+                        size={32}
+                        color={COLORS.TEXT_LIGHT}
+                      />
+                      <Text
                         style={{
-                          alignItems: "center",
-                          backgroundColor: COLORS.SURFACE,
-                          borderRadius: 11,
-                          height: 22,
-                          justifyContent: "center",
-                          width: 22,
+                          color: COLORS.TEXT_PRIMARY,
+                          fontSize: 16,
+                          fontWeight: "900",
+                          marginTop: 14,
                         }}
                       >
-                        <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 10, fontWeight: "900" }}>
-                          {(item.name || item.email).slice(0, 1).toUpperCase()}
-                        </Text>
-                      </View>
+                        No messages yet
+                      </Text>
                       <Text
-                        numberOfLines={1}
+                        style={{
+                          color: COLORS.TEXT_SECONDARY,
+                          lineHeight: 20,
+                          marginTop: 6,
+                          textAlign: "center",
+                        }}
+                      >
+                        Send the first message in this chat.
+                      </Text>
+                    </View>
+                  }
+                  renderItem={({ item }) => {
+                    const isMine = item.sender?.id === user?.id;
+                    return (
+                      <ChatBubble
+                        item={item}
+                        isMine={isMine}
+                        onDelete={confirmDelete}
+                        onEdit={startEdit}
+                        onOpenImage={setPreviewImage}
+                      />
+                    );
+                  }}
+                />
+              )}
+
+              <View
+                style={{
+                  bottom: 10,
+                  left: 10,
+                  position: "absolute",
+                  right: 10,
+                }}
+              >
+                {showMentions ? (
+                  <View
+                    style={{
+                      backgroundColor: COLORS.SURFACE,
+                      borderColor: COLORS.BORDER_LIGHT,
+                      borderRadius: 18,
+                      borderWidth: 1,
+                      marginBottom: 8,
+                      padding: 8,
+                    }}
+                  >
+                    <FlatList
+                      data={mentionParticipants}
+                      horizontal
+                      keyExtractor={(item) => item.id}
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ gap: 8 }}
+                      ListEmptyComponent={
+                        <Text
+                          style={{
+                            color: COLORS.TEXT_LIGHT,
+                            fontSize: 12,
+                            paddingHorizontal: 8,
+                          }}
+                        >
+                          No one to tag in this chat
+                        </Text>
+                      }
+                      renderItem={({ item }) => (
+                        <Pressable
+                          onPress={() => insertMention(item)}
+                          style={{
+                            alignItems: "center",
+                            backgroundColor: COLORS.PRIMARY_LIGHT,
+                            borderRadius: 999,
+                            flexDirection: "row",
+                            gap: 7,
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                          }}
+                        >
+                          <View
+                            style={{
+                              alignItems: "center",
+                              backgroundColor: COLORS.SURFACE,
+                              borderRadius: 11,
+                              height: 22,
+                              justifyContent: "center",
+                              width: 22,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: COLORS.PRIMARY_DARK,
+                                fontSize: 10,
+                                fontWeight: "900",
+                              }}
+                            >
+                              {(item.name || item.email)
+                                .slice(0, 1)
+                                .toUpperCase()}
+                            </Text>
+                          </View>
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              color: COLORS.PRIMARY_DARK,
+                              fontSize: 12,
+                              fontWeight: "900",
+                              maxWidth: 120,
+                            }}
+                          >
+                            {item.name || item.email}
+                          </Text>
+                        </Pressable>
+                      )}
+                    />
+                  </View>
+                ) : null}
+                {image ? (
+                  <View
+                    style={{
+                      alignItems: "center",
+                      backgroundColor: COLORS.SURFACE,
+                      borderColor: COLORS.BORDER_LIGHT,
+                      borderRadius: 18,
+                      borderWidth: 1,
+                      flexDirection: "row",
+                      gap: 10,
+                      marginBottom: 8,
+                      padding: 8,
+                    }}
+                  >
+                    <Image
+                      source={{ uri: image.uri }}
+                      style={{ borderRadius: 8, height: 44, width: 44 }}
+                    />
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        color: COLORS.TEXT_PRIMARY,
+                        flex: 1,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {image.fileName || "Selected image"}
+                    </Text>
+                    <Pressable onPress={() => setImage(null)}>
+                      <Ionicons
+                        name="close-circle"
+                        size={22}
+                        color={COLORS.TEXT_SECONDARY}
+                      />
+                    </Pressable>
+                  </View>
+                ) : null}
+                {editingMessage ? (
+                  <View
+                    style={{
+                      alignItems: "center",
+                      backgroundColor: COLORS.SURFACE,
+                      borderColor: COLORS.BORDER_LIGHT,
+                      borderLeftColor: COLORS.PRIMARY,
+                      borderLeftWidth: 3,
+                      borderRadius: 18,
+                      borderWidth: 1,
+                      flexDirection: "row",
+                      gap: 10,
+                      marginBottom: 8,
+                      padding: 8,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text
                         style={{
                           color: COLORS.PRIMARY_DARK,
                           fontSize: 12,
                           fontWeight: "900",
-                          maxWidth: 120,
                         }}
                       >
-                        {item.name || item.email}
+                        Editing message
                       </Text>
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          color: COLORS.TEXT_SECONDARY,
+                          fontSize: 12,
+                          marginTop: 2,
+                        }}
+                      >
+                        {editingMessage.content}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        setEditingMessage(null);
+                        setContent("");
+                      }}
+                    >
+                      <Ionicons
+                        name="close-circle"
+                        size={22}
+                        color={COLORS.TEXT_SECONDARY}
+                      />
                     </Pressable>
-                  )}
-                />
-              ) : null}
-              {image ? (
-                <View
-                  style={{
-                    alignItems: "center",
-                    backgroundColor: "#F8FAFC",
-                    borderRadius: 10,
-                    flexDirection: "row",
-                    gap: 10,
-                    marginBottom: 8,
-                    padding: 8,
-                  }}
-                >
-                  <Image
-                    source={{ uri: image.uri }}
-                    style={{ borderRadius: 8, height: 44, width: 44 }}
-                  />
-                  <Text numberOfLines={1} style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "700" }}>
-                    {image.fileName || "Selected image"}
-                  </Text>
-                  <Pressable onPress={() => setImage(null)}>
-                    <Ionicons name="close-circle" size={22} color={COLORS.TEXT_SECONDARY} />
-                  </Pressable>
-                </View>
-              ) : null}
-              {editingMessage ? (
-                <View
-                  style={{
-                    alignItems: "center",
-                    backgroundColor: "#F8FAFC",
-                    borderLeftColor: COLORS.PRIMARY,
-                    borderLeftWidth: 3,
-                    borderRadius: 10,
-                    flexDirection: "row",
-                    gap: 10,
-                    marginBottom: 8,
-                    padding: 8,
-                  }}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 12, fontWeight: "900" }}>
-                      Editing message
-                    </Text>
-                    <Text numberOfLines={1} style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 2 }}>
-                      {editingMessage.content}
-                    </Text>
                   </View>
-                  <Pressable
-                    onPress={() => {
-                      setEditingMessage(null);
-                      setContent("");
+                ) : null}
+                <View
+                  style={{
+                    alignItems: "center",
+                    flexDirection: "row",
+                    gap: 7,
+                  }}
+                >
+                  <View
+                    style={{
+                      alignItems: "center",
+                      backgroundColor: COLORS.SURFACE,
+                      borderColor: COLORS.BORDER_LIGHT,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      flex: 1,
+                      flexDirection: "row",
+                      gap: 2,
+                      minHeight: 56,
+                      paddingLeft: 14,
+                      paddingRight: 8,
+                      shadowColor: "#0F172A",
+                      shadowOpacity: 0.06,
+                      shadowRadius: 12,
                     }}
                   >
-                    <Ionicons name="close-circle" size={22} color={COLORS.TEXT_SECONDARY} />
+                    <Pressable
+                      disabled={Boolean(editingMessage)}
+                      onPress={pickImage}
+                      style={{
+                        alignItems: "center",
+                        height: 44,
+                        justifyContent: "center",
+                        width: 40,
+                      }}
+                    >
+                      <Ionicons
+                        name="attach-outline"
+                        size={25}
+                        color={COLORS.PRIMARY_DARK}
+                      />
+                    </Pressable>
+                    <TextInput
+                      multiline
+                      onChangeText={setContent}
+                      placeholder="Message"
+                      placeholderTextColor={COLORS.TEXT_LIGHT}
+                      style={{
+                        color: COLORS.TEXT_PRIMARY,
+                        flex: 1,
+                        fontSize: 16,
+                        maxHeight: 108,
+                        minHeight: 50,
+                        paddingHorizontal: 8,
+                        paddingVertical: 13,
+                      }}
+                      value={content}
+                    />
+                    <Pressable
+                      onPress={() => setShowMentions((current) => !current)}
+                      style={{
+                        alignItems: "center",
+                        backgroundColor: showMentions
+                          ? COLORS.PRIMARY_LIGHT
+                          : "transparent",
+                        borderRadius: 999,
+                        height: 42,
+                        justifyContent: "center",
+                        width: 42,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: COLORS.PRIMARY_DARK,
+                          fontSize: 21,
+                          fontWeight: "900",
+                        }}
+                      >
+                        @
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <Pressable
+                    disabled={sendMessage.isPending || editMessage.isPending}
+                    onPress={submit}
+                    style={{
+                      alignItems: "center",
+                      backgroundColor:
+                        content.trim() || image || editingMessage
+                          ? COLORS.PRIMARY_DARK
+                          : "#DADADA",
+                      borderRadius: 999,
+                      height: 56,
+                      justifyContent: "center",
+                      opacity:
+                        sendMessage.isPending || editMessage.isPending
+                          ? 0.7
+                          : 1,
+                      shadowColor: "#0F172A",
+                      shadowOpacity: 0.12,
+                      shadowRadius: 10,
+                      width: 56,
+                    }}
+                  >
+                    <Ionicons
+                      name={
+                        editingMessage ? "checkmark-outline" : "send-outline"
+                      }
+                      size={23}
+                      color={COLORS.TEXT_WHITE}
+                    />
                   </Pressable>
                 </View>
-              ) : null}
-              <View style={{ alignItems: "center", flexDirection: "row", gap: 8 }}>
-                <Pressable disabled={Boolean(editingMessage)} onPress={pickImage}>
-                  <Ionicons name="attach-outline" size={22} color={COLORS.TEXT_PRIMARY} />
-                </Pressable>
-                <Pressable
-                  onPress={() => setShowMentions((current) => !current)}
-                  style={{
-                    alignItems: "center",
-                    backgroundColor: showMentions ? COLORS.PRIMARY_LIGHT : "transparent",
-                    borderRadius: 14,
-                    height: 28,
-                    justifyContent: "center",
-                    width: 28,
-                  }}
-                >
-                  <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 18, fontWeight: "900" }}>@</Text>
-                </Pressable>
-                <TextInput
-                  multiline
-                  onChangeText={setContent}
-                  placeholder="Ask anything..."
-                  placeholderTextColor={COLORS.TEXT_LIGHT}
-                  style={{
-                    color: COLORS.TEXT_PRIMARY,
-                    flex: 1,
-                    maxHeight: 90,
-                    minHeight: 38,
-                    paddingVertical: 8,
-                  }}
-                  value={content}
-                />
-                <Pressable
-                  disabled={sendMessage.isPending || editMessage.isPending}
-                  onPress={submit}
-                  style={{
-                    alignItems: "center",
-                    backgroundColor: COLORS.PRIMARY,
-                    borderRadius: 18,
-                    height: 36,
-                    justifyContent: "center",
-                    opacity: sendMessage.isPending || editMessage.isPending ? 0.7 : 1,
-                    width: 36,
-                  }}
-                >
-                  <Ionicons name={editingMessage ? "checkmark-outline" : "send-outline"} size={17} color={COLORS.TEXT_WHITE} />
-                </Pressable>
+                {error ? (
+                  <Text
+                    style={{
+                      color: COLORS.ERROR,
+                      fontSize: 11,
+                      fontWeight: "800",
+                      marginTop: 6,
+                    }}
+                  >
+                    {error}
+                  </Text>
+                ) : null}
               </View>
-              {error ? (
-                <Text style={{ color: COLORS.ERROR, fontSize: 11, fontWeight: "800", marginTop: 6 }}>
-                  {error}
-                </Text>
-              ) : null}
-            </View>
-          </View>
+            </>
+          )}
           <ImagePreviewModal
             message={previewImage}
             onClose={() => setPreviewImage(null)}
@@ -604,6 +946,169 @@ export function MessagesScreen() {
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+function ConversationRow({
+  conversation,
+  currentUserId,
+  onPress,
+}: {
+  conversation: ChatConversation;
+  currentUserId?: string;
+  onPress: () => void;
+}) {
+  const lastMessage = conversation.lastMessage;
+  const unreadCount = conversation.unreadCount || 0;
+  const time = lastMessage
+    ? new Date(lastMessage.createdAt).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        alignItems: "center",
+        backgroundColor: COLORS.SURFACE,
+        borderColor: COLORS.BORDER_LIGHT,
+        borderRadius: 14,
+        borderWidth: 1,
+        flexDirection: "row",
+        gap: 12,
+        minHeight: 72,
+        paddingHorizontal: 12,
+        paddingVertical: 11,
+        shadowColor: "#0F172A",
+        shadowOpacity: 0.04,
+        shadowRadius: 10,
+      }}
+    >
+      <Avatar
+        conversation={conversation}
+        currentUserId={currentUserId}
+        size={46}
+      />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          numberOfLines={1}
+          style={{
+            color: COLORS.TEXT_PRIMARY,
+            fontSize: 15,
+            fontWeight: "900",
+          }}
+        >
+          {conversation.title}
+        </Text>
+        <Text
+          numberOfLines={1}
+          style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 4 }}
+        >
+          {lastMessage?.content ||
+            conversation.subtitle ||
+            (conversation.type === "group"
+              ? "Project group chat"
+              : "Direct message")}
+        </Text>
+        <Text
+          numberOfLines={1}
+          style={{
+            color: COLORS.TEXT_LIGHT,
+            fontSize: 10,
+            fontWeight: "800",
+            marginTop: 5,
+            textTransform: "uppercase",
+          }}
+        >
+          {conversation.type === "group" ? "Project group" : "Direct chat"}
+        </Text>
+      </View>
+      <View style={{ alignItems: "flex-end", gap: 5 }}>
+        <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 10 }}>{time}</Text>
+        {unreadCount > 0 ? (
+          <View
+            style={{
+              alignItems: "center",
+              backgroundColor: COLORS.PRIMARY,
+              borderRadius: 999,
+              height: 20,
+              justifyContent: "center",
+              minWidth: 20,
+              paddingHorizontal: 6,
+            }}
+          >
+            <Text
+              style={{
+                color: COLORS.TEXT_WHITE,
+                fontSize: 10,
+                fontWeight: "900",
+              }}
+            >
+              {unreadCount}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
+function Avatar({
+  conversation,
+  currentUserId,
+  size,
+}: {
+  conversation: ChatConversation;
+  currentUserId?: string;
+  size: number;
+}) {
+  const participant =
+    conversation.participants.find((item) => item.id !== currentUserId) ||
+    conversation.participants[0];
+  const image = conversation.type === "direct" ? participant?.image : undefined;
+  const label =
+    conversation.type === "group"
+      ? conversation.title
+      : participant?.name || participant?.email || conversation.title;
+
+  if (image) {
+    return (
+      <Image
+        source={{ uri: image }}
+        style={{ borderRadius: size / 2, height: size, width: size }}
+      />
+    );
+  }
+
+  return (
+    <View
+      style={{
+        alignItems: "center",
+        backgroundColor:
+          conversation.type === "group" ? COLORS.PRIMARY_LIGHT : COLORS.MUTED,
+        borderColor:
+          conversation.type === "group"
+            ? "rgba(5,150,105,0.18)"
+            : COLORS.BORDER_LIGHT,
+        borderRadius: size / 2,
+        borderWidth: 1,
+        height: size,
+        justifyContent: "center",
+        width: size,
+      }}
+    >
+      <Text
+        style={{
+          color: COLORS.PRIMARY_DARK,
+          fontSize: Math.max(11, size * 0.32),
+          fontWeight: "900",
+        }}
+      >
+        {label.slice(0, 1).toUpperCase()}
+      </Text>
+    </View>
   );
 }
 
@@ -624,22 +1129,39 @@ function ChatBubble({
     <View style={{ alignItems: isMine ? "flex-end" : "flex-start" }}>
       <View
         style={{
-          backgroundColor: isMine ? "#4F86E8" : COLORS.SURFACE,
-          borderRadius: 12,
-          borderTopRightRadius: isMine ? 12 : 12,
-          borderWidth: isMine ? 0 : 1,
-          borderColor: COLORS.BORDER_LIGHT,
-          maxWidth: "82%",
-          padding: 14,
+          backgroundColor: isMine ? COLORS.PRIMARY_DARK : COLORS.SURFACE,
+          borderColor: isMine ? COLORS.PRIMARY_DARK : COLORS.BORDER_LIGHT,
+          borderRadius: 16,
+          borderBottomLeftRadius: isMine ? 16 : 4,
+          borderBottomRightRadius: isMine ? 4 : 16,
+          borderWidth: 1,
+          maxWidth: "80%",
+          paddingHorizontal: 12,
+          paddingVertical: 8,
           shadowColor: "#0F172A",
-          shadowOpacity: isMine ? 0 : 0.05,
-          shadowRadius: 12,
+          shadowOpacity: isMine ? 0.03 : 0.06,
+          shadowRadius: 10,
         }}
       >
-        <Text style={{ color: isMine ? COLORS.TEXT_WHITE : "#4F86E8", fontSize: 12, fontWeight: "900", marginBottom: 4 }}>
-          {isMine ? "You" : item.sender?.name || "Inkingi"}
-        </Text>
-        <Text style={{ color: isMine ? COLORS.TEXT_WHITE : COLORS.TEXT_PRIMARY, fontSize: 15, lineHeight: 21 }}>
+        {!isMine ? (
+          <Text
+            style={{
+              color: COLORS.PRIMARY_DARK,
+              fontSize: 11,
+              fontWeight: "900",
+              marginBottom: 3,
+            }}
+          >
+            {item.sender?.name || "Inkingi"}
+          </Text>
+        ) : null}
+        <Text
+          style={{
+            color: isMine ? COLORS.TEXT_WHITE : COLORS.TEXT_PRIMARY,
+            fontSize: 14,
+            lineHeight: 20,
+          }}
+        >
           {item.content}
         </Text>
         {item.photoUrl ? (
@@ -647,35 +1169,58 @@ function ChatBubble({
             <Image
               source={{ uri: item.photoUrl }}
               style={{
-                borderRadius: 10,
-                height: 170,
+                borderRadius: 12,
+                height: 160,
                 marginTop: 10,
-                width: 210,
+                width: 214,
               }}
             />
           </Pressable>
         ) : null}
       </View>
       {isMine ? (
-        <View style={{ flexDirection: "row", gap: 10, marginTop: 5 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 10,
+            marginTop: 4,
+            paddingHorizontal: 6,
+          }}
+        >
           <Pressable onPress={() => onEdit(item)}>
-            <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 11, fontWeight: "900" }}>Edit</Text>
+            <Text
+              style={{
+                color: COLORS.PRIMARY_DARK,
+                fontSize: 11,
+                fontWeight: "900",
+              }}
+            >
+              Edit
+            </Text>
           </Pressable>
           <Pressable onPress={() => onDelete(item)}>
-            <Text style={{ color: COLORS.ERROR, fontSize: 11, fontWeight: "900" }}>Delete</Text>
+            <Text
+              style={{ color: COLORS.ERROR, fontSize: 11, fontWeight: "900" }}
+            >
+              Delete
+            </Text>
           </Pressable>
         </View>
       ) : null}
       <Text
         style={{
           color: COLORS.TEXT_LIGHT,
-          fontSize: 11,
+          fontSize: 10,
           marginTop: 4,
           maxWidth: "82%",
+          paddingHorizontal: 6,
           textAlign: isMine ? "right" : "left",
         }}
       >
-        {new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        {new Date(item.createdAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
         {item.editedAt
           ? ` · edited ${new Date(item.editedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
           : ""}
@@ -694,7 +1239,11 @@ function ImagePreviewModal({
   onDownload: () => void;
 }) {
   return (
-    <Modal animationType="fade" transparent visible={Boolean(message?.photoUrl)}>
+    <Modal
+      animationType="fade"
+      transparent
+      visible={Boolean(message?.photoUrl)}
+    >
       <View style={{ backgroundColor: "#050505", flex: 1 }}>
         <View
           style={{
@@ -706,13 +1255,29 @@ function ImagePreviewModal({
           }}
         >
           <Pressable onPress={onClose} style={previewButtonStyle}>
-            <Ionicons name="close-outline" size={25} color={COLORS.TEXT_WHITE} />
+            <Ionicons
+              name="close-outline"
+              size={25}
+              color={COLORS.TEXT_WHITE}
+            />
           </Pressable>
-          <Text numberOfLines={1} style={{ color: COLORS.TEXT_WHITE, flex: 1, fontWeight: "900", marginHorizontal: 12 }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: COLORS.TEXT_WHITE,
+              flex: 1,
+              fontWeight: "900",
+              marginHorizontal: 12,
+            }}
+          >
             {message?.sender?.name || "Chat image"}
           </Text>
           <Pressable onPress={onDownload} style={previewButtonStyle}>
-            <Ionicons name="download-outline" size={22} color={COLORS.TEXT_WHITE} />
+            <Ionicons
+              name="download-outline"
+              size={22}
+              color={COLORS.TEXT_WHITE}
+            />
           </Pressable>
         </View>
         {message?.photoUrl ? (

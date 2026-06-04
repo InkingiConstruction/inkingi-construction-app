@@ -10,6 +10,14 @@ import { ClientMilestone, ClientProgressPhoto } from "@/components/client/client
 import { COLORS } from "@/constants/colors";
 import { ProgressMedia, ProgressMediaViewer } from "@/components/shared/progress-media-viewer";
 
+type ProgressGroup = {
+  id: string;
+  items: ClientProgressPhoto[];
+  representative: ClientProgressPhoto;
+  mediaCount: number;
+  status: "pending" | "approved" | "rejected";
+};
+
 export default function ClientProgress() {
   const [viewerMedia, setViewerMedia] = useState<ProgressMedia | null>(null);
   const progressQuery = useQuery({
@@ -22,6 +30,7 @@ export default function ClientProgress() {
   });
 
   const progress = progressQuery.data || [];
+  const progressGroups = groupProgress(progress);
   const milestones = milestonesQuery.data || [];
   const approved = progress.filter((item) => item.reviewStatus === "approved").length;
   const rejected = progress.filter((item) => item.reviewStatus === "rejected").length;
@@ -46,7 +55,7 @@ export default function ClientProgress() {
         <View style={{ gap: 16 }}>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <Metric label="Milestones" value={milestones.length} icon="flag-outline" />
-            <Metric label="Updates" value={progress.length} icon="images-outline" />
+            <Metric label="Updates" value={progressGroups.length} icon="images-outline" />
           </View>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <Metric label="Approved" value={approved} icon="checkmark-circle-outline" />
@@ -69,7 +78,8 @@ export default function ClientProgress() {
           </Panel>
 
           <Panel title="Recent progress uploads">
-            {progress.map((photo) => {
+            {progressGroups.map((group) => {
+              const photo = group.representative;
               const media = {
                 url: photo.cloudinaryUrl,
                 isVideo: photo.isVideo,
@@ -78,7 +88,7 @@ export default function ClientProgress() {
               };
 
               return (
-                <View key={photo.id} style={{ backgroundColor: COLORS.MUTED, borderRadius: 8, overflow: "hidden" }}>
+                <View key={group.id} style={{ backgroundColor: COLORS.MUTED, borderRadius: 8, overflow: "hidden" }}>
                   {photo.isVideo ? (
                     <Pressable
                       onPress={() => setViewerMedia(media)}
@@ -97,10 +107,10 @@ export default function ClientProgress() {
                       <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "900" }}>
                         {photo.milestone?.name || photo.project?.name || "Progress update"}
                       </Text>
-                      <StatusBadge status={photo.reviewStatus || "pending"} />
+                      <StatusBadge status={group.status} />
                     </View>
                     <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
-                      {photo.caption || "Engineer uploaded a progress photo."}
+                      {photo.caption || "Engineer uploaded a progress update."} • {group.mediaCount} media item{group.mediaCount === 1 ? "" : "s"}
                     </Text>
                     {photo.supervisorComment ? (
                       <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 12, lineHeight: 18, marginTop: 8 }}>
@@ -111,13 +121,38 @@ export default function ClientProgress() {
                 </View>
               );
             })}
-            {progress.length === 0 ? <Empty text="Reviewed progress updates will appear after the supervisor approves or rejects engineer uploads." /> : null}
+            {progressGroups.length === 0 ? <Empty text="Reviewed progress updates will appear after the supervisor approves or rejects engineer uploads." /> : null}
           </Panel>
         </View>
       </ScrollView>
       <ProgressMediaViewer media={viewerMedia} onClose={() => setViewerMedia(null)} />
     </SafeAreaView>
   );
+}
+
+function groupProgress(items: ClientProgressPhoto[]): ProgressGroup[] {
+  const grouped = new Map<string, ClientProgressPhoto[]>();
+
+  for (const item of items) {
+    const groupId = item.progressGroupId || item.id;
+    grouped.set(groupId, [...(grouped.get(groupId) || []), item]);
+  }
+
+  return [...grouped.entries()]
+    .map(([id, groupItems]) => {
+      const ordered = [...groupItems].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      const hasRejected = ordered.some((item) => item.reviewStatus === "rejected");
+      const allApproved = ordered.every((item) => item.reviewStatus === "approved");
+      const status: ProgressGroup["status"] = hasRejected ? "rejected" : allApproved ? "approved" : "pending";
+      return {
+        id,
+        items: ordered,
+        representative: ordered[0],
+        mediaCount: ordered.length,
+        status,
+      };
+    })
+    .sort((a, b) => new Date(b.representative.createdAt).getTime() - new Date(a.representative.createdAt).getTime());
 }
 
 function StatusBadge({ status }: { status: string }) {

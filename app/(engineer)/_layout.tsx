@@ -18,6 +18,7 @@ export default function RootLayout() {
         "notifications",
         "profile",
         "profile-edit",
+        "progress-detail",
         "project/[id]",
       ]}
     />

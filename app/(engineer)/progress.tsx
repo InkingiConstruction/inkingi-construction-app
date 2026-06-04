@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,6 +13,15 @@ import { isAcceptedEngineerProject } from "@/components/engineer/engineer-utils"
 import { ProgressMedia, ProgressMediaViewer } from "@/components/shared/progress-media-viewer";
 
 type CapturedMedia = ImagePicker.ImagePickerAsset;
+type ProgressGroup = {
+  id: string;
+  items: EngineerProgressPhoto[];
+  representative: EngineerProgressPhoto;
+  mediaCount: number;
+  photoCount: number;
+  videoCount: number;
+  status: "pending" | "approved" | "rejected";
+};
 
 export default function EngineerProgress() {
   const queryClient = useQueryClient();
@@ -32,7 +41,10 @@ export default function EngineerProgress() {
   });
 
   const projects = (projectsQuery.data || []).filter(isAcceptedEngineerProject);
-  const activeProjectId = selectedProjectId || params.projectId || projects[0]?.id || "";
+  const activeProjects = projects.filter((project) => project.status === "active");
+  const requestedProjectId = selectedProjectId || params.projectId || "";
+  const activeProjectId =
+    activeProjects.find((project) => project.id === requestedProjectId)?.id || activeProjects[0]?.id || "";
 
   const milestonesQuery = useQuery({
     queryKey: ["engineer-milestones", activeProjectId],
@@ -99,6 +111,10 @@ export default function EngineerProgress() {
     setSubmitting(true);
     try {
       if (!activeProjectId) throw new Error("Select a project first.");
+      const selectedProject = activeProjects.find((project) => project.id === activeProjectId);
+      if (!selectedProject || selectedProject.status !== "active") {
+        throw new Error("Progress can only be uploaded on active projects.");
+      }
       if (mediaItems.length === 0) throw new Error("Take progress photos or record a video first.");
 
       const photoCount = mediaItems.filter((item) => item.type !== "video").length;
@@ -107,24 +123,25 @@ export default function EngineerProgress() {
         throw new Error("Take at least three photos, or record a video.");
       }
 
+      const progressGroupId = `progress-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const form = new FormData();
+      form.append("projectId", activeProjectId);
+      form.append("progressGroupId", progressGroupId);
+      if (activeMilestoneId) form.append("milestoneId", activeMilestoneId);
+      if (caption.trim()) form.append("caption", caption.trim());
+
       for (const [index, item] of mediaItems.entries()) {
-        const form = new FormData();
-        form.append("projectId", activeProjectId);
-        if (activeMilestoneId) form.append("milestoneId", activeMilestoneId);
-        if (caption.trim()) {
-          form.append("caption", mediaItems.length > 1 ? `${caption.trim()} (${index + 1}/${mediaItems.length})` : caption.trim());
-        }
         form.append("media", {
           uri: item.uri,
           name: item.fileName || `progress-${Date.now()}-${index}.${item.type === "video" ? "mp4" : "jpg"}`,
           type: item.mimeType || (item.type === "video" ? "video/mp4" : "image/jpeg"),
         } as unknown as Blob);
-
-        await api.post(ENDPOINTS.PROGRESS_PHOTOS.CREATE, form, {
-          headers: { "Content-Type": "multipart/form-data" },
-          timeout: 45000,
-        });
       }
+
+      await api.post(ENDPOINTS.PROGRESS_PHOTOS.CREATE, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 90000,
+      });
 
       setCaption("");
       setMediaItems([]);
@@ -141,6 +158,7 @@ export default function EngineerProgress() {
   };
 
   const progress = progressQuery.data || [];
+  const progressGroups = groupProgress(progress);
   const refreshing = projectsQuery.isRefetching || milestonesQuery.isRefetching || progressQuery.isRefetching;
   const refresh = () => {
     projectsQuery.refetch();
@@ -165,9 +183,11 @@ export default function EngineerProgress() {
           <ActivityIndicator color={COLORS.PRIMARY} style={{ marginTop: 40 }} />
         ) : projects.length === 0 ? (
           <Empty text="No accepted engineer projects found." />
+        ) : activeProjects.length === 0 ? (
+          <Empty text="Progress uploads open after a project becomes active." />
         ) : (
           <>
-            <Selector items={projects.map((project) => ({ id: project.id, title: project.name, subtitle: project.status }))} activeId={activeProjectId} onSelect={(id) => {
+            <Selector items={activeProjects.map((project) => ({ id: project.id, title: project.name, subtitle: project.status }))} activeId={activeProjectId} onSelect={(id) => {
               setSelectedProjectId(id);
               setSelectedMilestoneId("");
             }} />
@@ -228,8 +248,20 @@ export default function EngineerProgress() {
             </View>
 
             {progressQuery.isLoading ? <ActivityIndicator color={COLORS.PRIMARY} /> : null}
-            {progress.length === 0 && !progressQuery.isLoading ? <Empty text="No progress uploads yet for this project." /> : null}
-            {progress.map((item) => <ProgressCard key={item.id} item={item} onOpen={setViewerMedia} />)}
+            {progressGroups.length === 0 && !progressQuery.isLoading ? <Empty text="No progress uploads yet for this project." /> : null}
+            {progressGroups.map((group) => (
+              <ProgressGroupCard
+                key={group.id}
+                group={group}
+                onOpen={() =>
+                  router.push({
+                    pathname: "/(engineer)/progress-detail",
+                    params: { projectId: activeProjectId, groupId: group.id },
+                  })
+                }
+                onPreview={setViewerMedia}
+              />
+            ))}
           </>
         )}
       </ScrollView>
@@ -265,7 +297,45 @@ function Selector({
   );
 }
 
-function ProgressCard({ item, onOpen }: { item: EngineerProgressPhoto; onOpen: (media: ProgressMedia) => void }) {
+function groupProgress(items: EngineerProgressPhoto[]): ProgressGroup[] {
+  const grouped = new Map<string, EngineerProgressPhoto[]>();
+
+  for (const item of items) {
+    const groupId = item.progressGroupId || item.id;
+    grouped.set(groupId, [...(grouped.get(groupId) || []), item]);
+  }
+
+  return [...grouped.entries()]
+    .map(([id, groupItems]) => {
+      const ordered = [...groupItems].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      const representative = ordered[0];
+      const hasRejected = ordered.some((item) => item.reviewStatus === "rejected");
+      const allApproved = ordered.every((item) => item.reviewStatus === "approved");
+      const videoCount = ordered.filter((item) => item.isVideo).length;
+      const status: ProgressGroup["status"] = hasRejected ? "rejected" : allApproved ? "approved" : "pending";
+      return {
+        id,
+        items: ordered,
+        representative,
+        mediaCount: ordered.length,
+        photoCount: ordered.length - videoCount,
+        videoCount,
+        status,
+      };
+    })
+    .sort((a, b) => new Date(b.representative.createdAt).getTime() - new Date(a.representative.createdAt).getTime());
+}
+
+function ProgressGroupCard({
+  group,
+  onOpen,
+  onPreview,
+}: {
+  group: ProgressGroup;
+  onOpen: () => void;
+  onPreview: (media: ProgressMedia) => void;
+}) {
+  const item = group.representative;
   const media = {
     url: item.cloudinaryUrl,
     isVideo: item.isVideo,
@@ -276,26 +346,32 @@ function ProgressCard({ item, onOpen }: { item: EngineerProgressPhoto; onOpen: (
   return (
     <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, overflow: "hidden" }}>
       {item.isVideo ? (
-        <Pressable onPress={() => onOpen(media)} style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 180, justifyContent: "center" }}>
+        <Pressable onPress={() => onPreview(media)} style={{ alignItems: "center", backgroundColor: COLORS.INK, height: 180, justifyContent: "center" }}>
           <Ionicons name="play-circle-outline" size={48} color={COLORS.TEXT_WHITE} />
           <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900", marginTop: 8 }}>Open video</Text>
         </Pressable>
       ) : (
-        <Pressable onPress={() => onOpen(media)}>
+        <Pressable onPress={() => onPreview(media)}>
           <Image source={{ uri: item.cloudinaryUrl }} style={{ backgroundColor: COLORS.MUTED, height: 180, width: "100%" }} />
         </Pressable>
       )}
       <View style={{ padding: 14 }}>
         <View style={{ alignItems: "center", flexDirection: "row", gap: 8 }}>
           <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "900" }}>{item.milestone?.name || "Project progress"}</Text>
-          <StatusBadge status={item.reviewStatus || "pending"} />
+          <StatusBadge status={group.status} />
         </View>
-        <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 19, marginTop: 4 }}>{item.caption || (item.isVideo ? "Video upload" : "Photo upload")}</Text>
+        <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 19, marginTop: 4 }}>
+          {item.caption || "Progress update"} • {group.mediaCount} media ({group.photoCount} photo{group.photoCount === 1 ? "" : "s"}, {group.videoCount} video{group.videoCount === 1 ? "" : "s"})
+        </Text>
         {item.supervisorComment ? (
           <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 12, lineHeight: 18, marginTop: 8 }}>
             Supervisor: {item.supervisorComment}
           </Text>
         ) : null}
+        <Pressable onPress={onOpen} style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 8, flexDirection: "row", gap: 8, justifyContent: "center", marginTop: 12, paddingVertical: 11 }}>
+          <Ionicons name="albums-outline" size={17} color={COLORS.PRIMARY_DARK} />
+          <Text style={{ color: COLORS.PRIMARY_DARK, fontWeight: "900" }}>View full update</Text>
+        </Pressable>
       </View>
     </View>
   );

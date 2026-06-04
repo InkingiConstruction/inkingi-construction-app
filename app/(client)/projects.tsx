@@ -49,6 +49,28 @@ export default function ClientProjects() {
     );
   };
 
+  const handlePauseProject = (projectId: string, projectName: string) => {
+    Alert.alert(
+      "Pause project",
+      `Pause "${projectName}" while it is still waiting for assignments?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Pause",
+          onPress: async () => {
+            try {
+              await api.patch(ENDPOINTS.PROJECTS.STATUS(projectId), { status: "paused" });
+              await projectsQuery.refetch();
+              Alert.alert("Project paused", `"${projectName}" is now paused.`);
+            } catch (error) {
+              Alert.alert("Pause failed", "Only pending projects can be paused.");
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <ScrollView
@@ -122,12 +144,22 @@ export default function ClientProjects() {
                       </View>
                       <View style={{ alignItems: "flex-end", gap: 8 }}>
                         <StatusBadge value={project.status} />
-                        <Pressable 
-                          onPress={() => handleDeleteProject(project.id, project.name)}
-                          style={{ padding: 4 }}
-                        >
-                          <Ionicons name="trash-outline" size={18} color={COLORS.ERROR} />
-                        </Pressable>
+                        <View style={{ flexDirection: "row", gap: 6 }}>
+                          {project.status === "draft" ? (
+                            <Pressable
+                              onPress={() => handlePauseProject(project.id, project.name)}
+                              style={{ padding: 4 }}
+                            >
+                              <Ionicons name="pause-circle-outline" size={19} color={COLORS.WARNING} />
+                            </Pressable>
+                          ) : null}
+                          <Pressable
+                            onPress={() => handleDeleteProject(project.id, project.name)}
+                            style={{ padding: 4 }}
+                          >
+                            <Ionicons name="trash-outline" size={18} color={COLORS.ERROR} />
+                          </Pressable>
+                        </View>
                       </View>
                     </View>
 
