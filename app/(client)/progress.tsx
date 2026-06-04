@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import { Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -25,10 +25,18 @@ export default function ClientProgress() {
   const milestones = milestonesQuery.data || [];
   const approved = progress.filter((item) => item.reviewStatus === "approved").length;
   const rejected = progress.filter((item) => item.reviewStatus === "rejected").length;
+  const refreshing = progressQuery.isRefetching || milestonesQuery.isRefetching;
+  const refresh = () => {
+    progressQuery.refetch();
+    milestonesQuery.refetch();
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
+      >
         <ClientTopBar
           title="Progress"
           subtitle="Follow engineer uploads, milestone state, and supervisor inspection decisions."

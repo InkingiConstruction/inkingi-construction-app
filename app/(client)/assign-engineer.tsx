@@ -5,6 +5,7 @@ import {
   Dimensions,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -145,6 +146,15 @@ export default function AssignEngineerScreen() {
 
   const engineers = engineersQuery.data || [];
   const invitations = invitationsQuery.data || [];
+  const refreshing =
+    projectsQuery.isRefetching ||
+    engineersQuery.isRefetching ||
+    invitationsQuery.isRefetching;
+  const refresh = () => {
+    projectsQuery.refetch();
+    engineersQuery.refetch();
+    invitationsQuery.refetch();
+  };
 
   // Filter engineers by search query
   const filteredEngineers = engineers.filter(e => 
@@ -201,7 +211,10 @@ export default function AssignEngineerScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
+      >
         
         {/* Header */}
         <View style={{ paddingHorizontal: 20 }}>

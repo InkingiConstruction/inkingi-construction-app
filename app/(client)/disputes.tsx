@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -104,7 +105,10 @@ export default function DisputesScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={disputesQuery.isRefetching} onRefresh={disputesQuery.refetch} tintColor={COLORS.PRIMARY} />}
+      >
         <View style={{ paddingHorizontal: 20 }}>
           <ClientTopBar
             title="Dispute Center"

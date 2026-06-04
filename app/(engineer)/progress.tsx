@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -22,6 +22,7 @@ export default function EngineerProgress() {
   const [caption, setCaption] = useState("");
   const [mediaItems, setMediaItems] = useState<CapturedMedia[]>([]);
   const [viewerMedia, setViewerMedia] = useState<ProgressMedia | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const projectsQuery = useQuery({
     queryKey: ["engineer-projects"],
@@ -69,12 +70,34 @@ export default function EngineerProgress() {
     }
   };
 
+  const pickFromPhone = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Phone gallery permission is required to attach progress media.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      mediaTypes: ["images", "videos"],
+      quality: 0.85,
+    });
+
+    if (!result.canceled) {
+      setMediaItems((current) => [...current, ...result.assets]);
+    }
+  };
+
   const removeMedia = (uri: string) => {
     setMediaItems((current) => current.filter((item) => item.uri !== uri));
   };
 
-  const uploadMutation = useMutation({
-    mutationFn: async () => {
+  const submitProgress = async () => {
+    if (submitting) return;
+
+    setSubmitting(true);
+    try {
       if (!activeProjectId) throw new Error("Select a project first.");
       if (mediaItems.length === 0) throw new Error("Take progress photos or record a video first.");
 
@@ -84,47 +107,57 @@ export default function EngineerProgress() {
         throw new Error("Take at least three photos, or record a video.");
       }
 
-      return Promise.all(
-        mediaItems.map((item, index) => {
-          const form = new FormData();
-          form.append("projectId", activeProjectId);
-          if (activeMilestoneId) form.append("milestoneId", activeMilestoneId);
-          if (caption.trim()) {
-            form.append("caption", mediaItems.length > 1 ? `${caption.trim()} (${index + 1}/${mediaItems.length})` : caption.trim());
-          }
-          form.append("media", {
-            uri: item.uri,
-            name: item.fileName || `progress-${Date.now()}-${index}.${item.type === "video" ? "mp4" : "jpg"}`,
-            type: item.mimeType || (item.type === "video" ? "video/mp4" : "image/jpeg"),
-          } as unknown as Blob);
+      for (const [index, item] of mediaItems.entries()) {
+        const form = new FormData();
+        form.append("projectId", activeProjectId);
+        if (activeMilestoneId) form.append("milestoneId", activeMilestoneId);
+        if (caption.trim()) {
+          form.append("caption", mediaItems.length > 1 ? `${caption.trim()} (${index + 1}/${mediaItems.length})` : caption.trim());
+        }
+        form.append("media", {
+          uri: item.uri,
+          name: item.fileName || `progress-${Date.now()}-${index}.${item.type === "video" ? "mp4" : "jpg"}`,
+          type: item.mimeType || (item.type === "video" ? "video/mp4" : "image/jpeg"),
+        } as unknown as Blob);
 
-          return api.post(ENDPOINTS.PROGRESS_PHOTOS.CREATE, form, {
-            headers: { "Content-Type": "multipart/form-data" },
-          });
-        }),
-      );
-    },
-    onSuccess: async () => {
+        await api.post(ENDPOINTS.PROGRESS_PHOTOS.CREATE, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+          timeout: 45000,
+        });
+      }
+
       setCaption("");
       setMediaItems([]);
-      await Promise.all([
+      void Promise.all([
         queryClient.refetchQueries({ queryKey: ["engineer-progress", activeProjectId] }),
         queryClient.invalidateQueries({ queryKey: ["supervisor-progress"] }),
       ]);
-      Alert.alert("Progress uploaded", "The supervisor can now review the update.");
-    },
-    onError: (error) => Alert.alert("Upload failed", error instanceof Error ? error.message : "Try again."),
-  });
+      Alert.alert("Progress submitted", "The supervisor can now review the update.");
+    } catch (error) {
+      Alert.alert("Submit failed", error instanceof Error ? error.message : "Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const progress = progressQuery.data || [];
+  const refreshing = projectsQuery.isRefetching || milestonesQuery.isRefetching || progressQuery.isRefetching;
+  const refresh = () => {
+    projectsQuery.refetch();
+    milestonesQuery.refetch();
+    progressQuery.refetch();
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
+      >
         <View style={{ gap: 6 }}>
           <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900" }}>Progress upload</Text>
           <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 14, lineHeight: 20 }}>
-            Upload progress media with captions for supervisor and client visibility.
+            Submit progress media with captions for supervisor and client visibility.
           </Text>
         </View>
 
@@ -171,20 +204,24 @@ export default function EngineerProgress() {
                   ))}
                 </ScrollView>
               ) : null}
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <Pressable onPress={() => captureMedia("photo")} style={{ alignItems: "center", backgroundColor: COLORS.MUTED, borderRadius: 8, flex: 1, flexDirection: "row", gap: 8, justifyContent: "center", paddingVertical: 13 }}>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Pressable onPress={() => captureMedia("photo")} style={{ alignItems: "center", backgroundColor: COLORS.MUTED, borderRadius: 8, flex: 1, gap: 6, justifyContent: "center", minHeight: 58, paddingVertical: 10 }}>
                   <Ionicons name="camera-outline" size={18} color={COLORS.PRIMARY_DARK} />
-                  <Text style={{ color: COLORS.PRIMARY_DARK, fontWeight: "900" }}>Photo</Text>
+                  <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 12, fontWeight: "900" }}>Take photo</Text>
                 </Pressable>
-                <Pressable onPress={() => captureMedia("video")} style={{ alignItems: "center", backgroundColor: COLORS.MUTED, borderRadius: 8, flex: 1, flexDirection: "row", gap: 8, justifyContent: "center", paddingVertical: 13 }}>
+                <Pressable onPress={() => captureMedia("video")} style={{ alignItems: "center", backgroundColor: COLORS.MUTED, borderRadius: 8, flex: 1, gap: 6, justifyContent: "center", minHeight: 58, paddingVertical: 10 }}>
                   <Ionicons name="videocam-outline" size={18} color={COLORS.PRIMARY_DARK} />
-                  <Text style={{ color: COLORS.PRIMARY_DARK, fontWeight: "900" }}>Video</Text>
+                  <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 12, fontWeight: "900" }}>Take video</Text>
+                </Pressable>
+                <Pressable onPress={pickFromPhone} style={{ alignItems: "center", backgroundColor: COLORS.MUTED, borderRadius: 8, flex: 1, gap: 6, justifyContent: "center", minHeight: 58, paddingVertical: 10 }}>
+                  <Ionicons name="phone-portrait-outline" size={18} color={COLORS.PRIMARY_DARK} />
+                  <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 12, fontWeight: "900" }}>From phone</Text>
                 </Pressable>
               </View>
               <View style={{ flexDirection: "row", gap: 10 }}>
-                <Pressable disabled={uploadMutation.isPending} onPress={() => uploadMutation.mutate()} style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY, borderRadius: 8, flex: 1, paddingVertical: 13 }}>
+                <Pressable disabled={submitting} onPress={submitProgress} style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY, borderRadius: 8, flex: 1, opacity: submitting ? 0.75 : 1, paddingVertical: 13 }}>
                   <Text style={{ color: COLORS.TEXT_WHITE, fontWeight: "900" }}>
-                    {uploadMutation.isPending ? "Uploading..." : `Upload ${mediaItems.length || ""}`}
+                    {submitting ? "Submitting..." : `Submit ${mediaItems.length || ""}`}
                   </Text>
                 </Pressable>
               </View>

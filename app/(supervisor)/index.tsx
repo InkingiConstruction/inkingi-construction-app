@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -109,10 +109,27 @@ export default function SupervisorIndex() {
     invitationsQuery.isLoading ||
     inspectionsQuery.isLoading ||
     progressQuery.isLoading;
+  const refreshing =
+    projectsQuery.isRefetching ||
+    invitationsQuery.isRefetching ||
+    inspectionsQuery.isRefetching ||
+    progressQuery.isRefetching ||
+    notificationsQuery.isRefetching;
+
+  const refresh = () => {
+    projectsQuery.refetch();
+    invitationsQuery.refetch();
+    inspectionsQuery.refetch();
+    progressQuery.refetch();
+    notificationsQuery.refetch();
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
+      >
         <View style={{ gap: 14, marginBottom: 18 }}>
           <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between" }}>
             <View style={{ flex: 1, paddingRight: 8 }}>

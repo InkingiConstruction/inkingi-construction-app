@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -27,7 +27,10 @@ export default function EngineerProjects() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={projectsQuery.isRefetching} onRefresh={projectsQuery.refetch} tintColor={COLORS.PRIMARY} />}
+      >
         <View style={{ gap: 6 }}>
           <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900" }}>Engineer projects</Text>
           <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 14, lineHeight: 20 }}>

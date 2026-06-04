@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { ActivityIndicator, Pressable, ScrollView, Text, View, Alert } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -51,7 +51,10 @@ export default function ClientProjects() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={projectsQuery.isRefetching} onRefresh={projectsQuery.refetch} tintColor={COLORS.PRIMARY} />}
+      >
         <ClientTopBar
           title="Projects"
           subtitle="Manage each project as a workspace: people, progress, and payments."

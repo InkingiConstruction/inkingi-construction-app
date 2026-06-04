@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -48,6 +48,20 @@ export default function ClientIndex() {
   const awaitingPayments = milestones.filter((milestone) => milestone.status === "awaiting_client_payment");
   const withoutEngineer = projects.filter((project) => !project.engineerId);
   const loading = projectsQuery.isLoading || milestonesQuery.isLoading;
+  const refreshing =
+    projectsQuery.isRefetching ||
+    milestonesQuery.isRefetching ||
+    progressQuery.isRefetching ||
+    escrowQuery.isRefetching ||
+    disputesQuery.isRefetching;
+
+  const refresh = () => {
+    projectsQuery.refetch();
+    milestonesQuery.refetch();
+    progressQuery.refetch();
+    escrowQuery.refetch();
+    disputesQuery.refetch();
+  };
 
   const totalEscrow = escrows.reduce((sum, escrow) => sum + Number(escrow.balance || 0), 0);
   const totalBudget = projects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
@@ -56,7 +70,10 @@ export default function ClientIndex() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
+      >
         <ClientTopBar
           title="Dashboard"
           // subtitle="A clean control room for projects, teams, progress, and escrow."

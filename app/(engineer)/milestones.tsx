@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -131,10 +131,18 @@ export default function EngineerMilestones() {
     setDurationDays(milestone.durationDays ? String(milestone.durationDays) : "");
     setAcceptanceCriteria(milestone.acceptanceCriteria || milestone.description || "");
   };
+  const refreshing = projectsQuery.isRefetching || milestonesQuery.isRefetching;
+  const refresh = () => {
+    projectsQuery.refetch();
+    milestonesQuery.refetch();
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
+      >
         <View style={{ gap: 16 }}>
           <Header />
 

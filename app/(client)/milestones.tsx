@@ -6,6 +6,7 @@ import {
   Image,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -136,6 +137,12 @@ export default function MilestonesScreen() {
   const projectMilestones = (milestonesQuery.data || []).map((milestone) =>
     toMilestoneView(milestone, activeProject),
   );
+  const refreshing = projectsQuery.isRefetching || milestonesQuery.isRefetching || escrowQuery.isRefetching;
+  const refresh = () => {
+    projectsQuery.refetch();
+    milestonesQuery.refetch();
+    escrowQuery.refetch();
+  };
 
   // Modal & Flow control states
   const [selectedMilestone, setSelectedMilestone] = useState<ClientMilestoneView | null>(null);
@@ -330,7 +337,10 @@ export default function MilestonesScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
+      >
         
         {/* Header */}
         <View style={{ paddingHorizontal: 20 }}>

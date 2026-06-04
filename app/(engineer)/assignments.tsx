@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -54,7 +54,10 @@ export default function EngineerAssignments() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={assignmentsQuery.isRefetching} onRefresh={assignmentsQuery.refetch} tintColor={COLORS.PRIMARY} />}
+      >
         <Header title="Project assignments" subtitle="Accept assigned client projects before creating milestones or BOQ." />
 
         {assignmentsQuery.isLoading ? (

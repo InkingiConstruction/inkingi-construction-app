@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   Text,
   TextInput,
@@ -22,6 +23,7 @@ export function ProfileEditScreen() {
   const user = useAuthStore((state) => state.user);
   const loading = useAuthStore((state) => state.loading);
   const updateProfile = useAuthStore((state) => state.updateProfile);
+  const fetchUser = useAuthStore((state) => state.fetchUser);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -84,7 +86,10 @@ export function ProfileEditScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+        <ScrollView
+          contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchUser} tintColor={COLORS.PRIMARY} />}
+        >
           <View style={{ alignItems: "center", flexDirection: "row", gap: 12, marginBottom: 18 }}>
             <Pressable
               onPress={() => router.back()}

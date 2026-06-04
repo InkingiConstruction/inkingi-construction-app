@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useMemo } from "react";
 import type { ReactNode } from "react";
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { COLORS } from "@/constants/colors";
 import { useAuthStore, UserRole } from "@/store/auth.store";
@@ -153,6 +153,8 @@ const roleProfileEdit: Record<UserRole, ProfileRoute> = {
 export function ProfileScreen() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const fetchUser = useAuthStore((state) => state.fetchUser);
+  const loading = useAuthStore((state) => state.loading);
   const role = (user?.role || "client") as UserRole;
   const imageUri = user?.image || user?.avatar || "";
   const roleInfo = roleCopy[role] || roleCopy.client;
@@ -191,7 +193,10 @@ export function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchUser} tintColor={COLORS.PRIMARY} />}
+      >
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.iconButton}>
             <Ionicons name="arrow-back" size={20} color={COLORS.TEXT_PRIMARY} />

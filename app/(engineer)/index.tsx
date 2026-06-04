@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -112,10 +112,29 @@ export default function EngineerDashboard() {
     assignmentsQuery.isLoading ||
     milestonesQuery.isLoading ||
     progressQuery.isLoading;
+  const refreshing =
+    projectsQuery.isRefetching ||
+    assignmentsQuery.isRefetching ||
+    milestonesQuery.isRefetching ||
+    progressQuery.isRefetching ||
+    rfqsQuery.isRefetching ||
+    boqQuery.isRefetching;
+
+  const refresh = () => {
+    projectsQuery.refetch();
+    assignmentsQuery.refetch();
+    milestonesQuery.refetch();
+    progressQuery.refetch();
+    rfqsQuery.refetch();
+    boqQuery.refetch();
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
+      >
         <View style={{ gap: 16 }}>
           <Header userName={user?.name || "Engineer"} />
 

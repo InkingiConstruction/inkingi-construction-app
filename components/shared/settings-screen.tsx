@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -107,6 +107,8 @@ const roleShortcuts: Record<UserRole, Shortcut[]> = {
 export function SettingsScreen() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const fetchUser = useAuthStore((state) => state.fetchUser);
+  const loading = useAuthStore((state) => state.loading);
   const role = (user?.role || "client") as UserRole;
   const [prefs, setPrefs] = useState({ push: true, email: true, sms: false });
   const [language, setLanguage] = useState<(typeof LANGUAGES)[number]["code"]>("en");
@@ -153,7 +155,10 @@ export function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchUser} tintColor={COLORS.PRIMARY} />}
+      >
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={12} style={styles.iconButton}>
             <Ionicons name="arrow-back" size={20} color={COLORS.TEXT_PRIMARY} />

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -57,10 +57,26 @@ export default function EngineerProjectDetails() {
   );
 
   const loading = projectQuery.isLoading || milestonesQuery.isLoading;
+  const refreshing =
+    projectQuery.isRefetching ||
+    milestonesQuery.isRefetching ||
+    boqQuery.isRefetching ||
+    rfqsQuery.isRefetching ||
+    progressQuery.isRefetching;
+  const refresh = () => {
+    projectQuery.refetch();
+    milestonesQuery.refetch();
+    boqQuery.refetch();
+    rfqsQuery.refetch();
+    progressQuery.refetch();
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
+      >
         <View style={{ alignItems: "center", flexDirection: "row", gap: 12 }}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={20} color={COLORS.TEXT_PRIMARY} />

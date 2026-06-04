@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -38,10 +38,25 @@ export default function SupplierIndex() {
   const deliveries = deliveriesQuery.data || [];
   const issuedOrders = orders.filter((order) => order.status === "issued");
   const loading = rfqsQuery.isLoading || quotesQuery.isLoading || ordersQuery.isLoading;
+  const refreshing =
+    rfqsQuery.isRefetching ||
+    quotesQuery.isRefetching ||
+    ordersQuery.isRefetching ||
+    deliveriesQuery.isRefetching;
+
+  const refresh = () => {
+    rfqsQuery.refetch();
+    quotesQuery.refetch();
+    ordersQuery.refetch();
+    deliveriesQuery.refetch();
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
+      >
         <SupplierTopBar
           title="Dashboard"
           subtitle="Procurement workbench for quotes, orders, and deliveries."

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import type { ComponentProps } from "react";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -62,6 +62,12 @@ export default function EngineerBoq() {
 
   const boqItems = boqQuery.data || [];
   const total = boqItems.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
+  const refreshing = projectsQuery.isRefetching || milestonesQuery.isRefetching || boqQuery.isRefetching;
+  const refresh = () => {
+    projectsQuery.refetch();
+    milestonesQuery.refetch();
+    boqQuery.refetch();
+  };
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -111,7 +117,10 @@ export default function EngineerBoq() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-      <ScrollView contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}>
+      <ScrollView
+        contentContainerStyle={{ gap: 14, padding: 20, paddingBottom: 120 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
+      >
         <View style={{ gap: 6 }}>
           <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900" }}>BOQ items</Text>
           <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 14, lineHeight: 20 }}>
