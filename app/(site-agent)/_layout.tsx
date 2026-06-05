@@ -11,7 +11,7 @@ export default function SiteAgentLayout() {
         { name: "messages", title: "Chat", icon: "chatbubbles-outline" },
         { name: "settings", title: "Settings", icon: "settings-outline" },
       ]}
-      hiddenRoutes={["profile", "profile-edit"]}
+      hiddenRoutes={["profile-edit"]}
     />
   );
 }

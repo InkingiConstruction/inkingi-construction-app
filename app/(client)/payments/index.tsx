@@ -28,7 +28,6 @@ type WalletSummary = {
   availableBalance?: string | number;
   currency: string;
   status: string;
-  maxBalance?: string | number;
   totalInProjectVaults?: string | number;
   recentTransactions?: WalletTransaction[];
 };
@@ -102,8 +101,6 @@ export default function ClientPayments() {
     () => vaults.reduce((sum, vault) => sum + Number(vault.currentBalance || 0), 0),
     [vaults],
   );
-  const walletLimit = Number(wallet?.maxBalance || 100000);
-  const walletPercent = walletLimit > 0 ? Math.min(100, Math.round((walletBalance / walletLimit) * 100)) : 0;
 
   const refresh = async () => {
     setRefreshing(true);
@@ -214,7 +211,7 @@ export default function ClientPayments() {
                 {balanceVisible ? formatRWF(walletBalance) : "••••••"}
               </Text>
               <Text style={{ color: "#CBD5E1", fontSize: 12, marginTop: 4 }}>
-                Limit: {formatRWF(walletLimit)}
+                Available balance
               </Text>
             </View>
             <Pressable
@@ -229,11 +226,7 @@ export default function ClientPayments() {
             </Pressable>
           </View>
 
-          <View style={{ backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 4, height: 7, marginTop: 18, overflow: "hidden" }}>
-            <View style={{ backgroundColor: COLORS.PRIMARY, height: "100%", width: `${walletPercent}%` }} />
-          </View>
-
-          <View style={{ flexDirection: "row", gap: 16, marginTop: 18 }}>
+          <View style={{ borderTopColor: "rgba(255,255,255,0.12)", borderTopWidth: 1, flexDirection: "row", gap: 16, marginTop: 18, paddingTop: 18 }}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: "800" }}>
                 PROJECT VAULTS

@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useStripe } from "@stripe/stripe-react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
@@ -63,6 +64,10 @@ type FundingResponse = {
     method: FundingMethod;
     status: string;
   };
+  paymentIntent?: {
+    id: string;
+    clientSecret: string | null;
+  };
 };
 
 export default function DepositScreen() {
@@ -72,6 +77,7 @@ export default function DepositScreen() {
     projectName?: string;
   }>();
   const queryClient = useQueryClient();
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [amount, setAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [method, setMethod] = useState<FundingMethod>("mtn_momo");
@@ -89,7 +95,32 @@ export default function DepositScreen() {
         phoneNumber: selectedMethod.requiresPhone ? phoneNumber : undefined,
       });
 
-      if (autoConfirm) {
+      if (method === "stripe") {
+        const clientSecret = funding.data.paymentIntent?.clientSecret;
+        if (!clientSecret) {
+          throw new Error("Stripe payment could not be initialized.");
+        }
+
+        const initResult = await initPaymentSheet({
+          merchantDisplayName: "Inkingi Construction",
+          paymentIntentClientSecret: clientSecret,
+          allowsDelayedPaymentMethods: false,
+          defaultBillingDetails: {
+            address: { country: "RW" },
+          },
+        });
+
+        if (initResult.error) {
+          throw new Error(initResult.error.message);
+        }
+
+        const presentResult = await presentPaymentSheet();
+        if (presentResult.error) {
+          throw new Error(presentResult.error.message);
+        }
+
+        await api.post(ENDPOINTS.ESCROW_ACCOUNTS.CONFIRM_FUNDING(funding.data.fundingRequest.id));
+      } else if (autoConfirm) {
         await api.post(ENDPOINTS.ESCROW_ACCOUNTS.CONFIRM_FUNDING(funding.data.fundingRequest.id));
       }
 
@@ -111,14 +142,14 @@ export default function DepositScreen() {
       ]);
       Alert.alert(
         isProjectTransfer ? "Project wallet funded" : "Wallet funded",
-        autoConfirm
+        method === "stripe" || autoConfirm
           ? "Funding was confirmed and balances were updated."
-          : "Funding request was created. Balance will update after webhook confirmation.",
+          : "Funding request was created. Balance will update after provider confirmation.",
         [{ text: "OK", onPress: () => router.back() }],
       );
     },
     onError: (error: any) => {
-      Alert.alert("Funding failed", error?.response?.data?.message || "Please try again.");
+      Alert.alert("Funding failed", error?.message || "Please try again.");
     },
   });
 
@@ -198,22 +229,24 @@ export default function DepositScreen() {
             </View>
           ) : null}
 
-          <Pressable
-            onPress={() => setAutoConfirm((value) => !value)}
-            style={styles.confirmToggle}
-          >
-            <Ionicons
-              name={autoConfirm ? "checkbox-outline" : "square-outline"}
-              size={22}
-              color={COLORS.PRIMARY}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.methodTitle}>Confirm immediately for testing</Text>
-              <Text style={styles.methodSubtitle}>
-                Turn off when real provider webhooks are active.
-              </Text>
-            </View>
-          </Pressable>
+          {method !== "stripe" ? (
+            <Pressable
+              onPress={() => setAutoConfirm((value) => !value)}
+              style={styles.confirmToggle}
+            >
+              <Ionicons
+                name={autoConfirm ? "checkbox-outline" : "square-outline"}
+                size={22}
+                color={COLORS.PRIMARY}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.methodTitle}>Confirm immediately for testing</Text>
+                <Text style={styles.methodSubtitle}>
+                  Turn off when real provider webhooks are active.
+                </Text>
+              </View>
+            </Pressable>
+          ) : null}
 
           <Pressable
             disabled={fundWallet.isPending}

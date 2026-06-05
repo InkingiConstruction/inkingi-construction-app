@@ -32,7 +32,7 @@ export default function ClientIndex() {
   });
   const escrowQuery = useQuery({
     queryKey: ["client-escrow-accounts"],
-    queryFn: async () => (await api.get<ClientEscrowAccount[]>(ENDPOINTS.ESCROW_ACCOUNTS.LIST)).data,
+    queryFn: async () => (await api.get<ClientEscrowAccount[] | ClientEscrowAccount>(ENDPOINTS.ESCROW_ACCOUNTS.LIST)).data,
   });
   const disputesQuery = useQuery({
     queryKey: ["client-disputes"],
@@ -42,7 +42,8 @@ export default function ClientIndex() {
   const projects = projectsQuery.data || [];
   const milestones = milestonesQuery.data || [];
   const progress = progressQuery.data || [];
-  const escrows = escrowQuery.data || [];
+  const escrowData = escrowQuery.data;
+  const escrows = Array.isArray(escrowData) ? escrowData : escrowData ? [escrowData] : [];
   const disputes = disputesQuery.data || [];
   const activeProjects = projects.filter((project) => !["completed", "cancelled"].includes(project.status));
   const awaitingPayments = milestones.filter((milestone) => milestone.status === "awaiting_client_payment");
@@ -63,7 +64,10 @@ export default function ClientIndex() {
     disputesQuery.refetch();
   };
 
-  const totalEscrow = escrows.reduce((sum, escrow) => sum + Number(escrow.balance || 0), 0);
+  const totalEscrow = escrows.reduce(
+    (sum, escrow: any) => sum + Number(escrow.availableBalance ?? escrow.balance ?? 0),
+    0,
+  );
   const totalBudget = projects.reduce((sum, p) => sum + Number(p.budget || 0), 0);
 
   const nextProject = withoutEngineer[0] || activeProjects[0] || projects[0];

@@ -77,7 +77,7 @@ export default function DocumentUploader({
 
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: true,
         quality: 0.8,
       });
@@ -98,7 +98,7 @@ export default function DocumentUploader({
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: 'images',
         allowsEditing: true,
         quality: 0.8,
       });
@@ -177,7 +177,7 @@ export default function DocumentUploader({
       
     } catch (error) {
       console.error('Upload error:', error);
-      Alert.alert('Upload Failed', 'Please try again');
+      Alert.alert('Upload Failed', error instanceof Error ? error.message : 'Please try again');
       setDocuments(prev => prev.filter(doc => doc.id !== documentId));
     } finally {
       setUploading(false);
