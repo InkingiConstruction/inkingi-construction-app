@@ -1,159 +1,183 @@
-// app/(client)/payments/index.tsx
-/**
- * @fileoverview Project Wallet Hub
- * Shows per-project escrow balances from the backend.
- * Passcode is verified once per session; subsequent actions skip re-prompting.
- */
-
-import React, { useState, useCallback, useMemo } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
-  View, Text, ScrollView, Pressable,
-  ActivityIndicator, RefreshControl,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useFocusEffect } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '@/constants/colors';
-import { api } from '@/api/api';
-import { ENDPOINTS } from '@/api/endpoints';
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { api } from "@/api/api";
+import { ENDPOINTS } from "@/api/endpoints";
+import { COLORS } from "@/constants/colors";
+import { formatRWF } from "@/utils/projectFunds";
 import {
   hasPasscode,
   isPasscodeSessionUnlocked,
-} from '@/utils/SecurityUtils';
-import { formatRWF } from '@/utils/projectFunds';
-import VerifyPasscodeModal from './verify-passcode';
+} from "@/utils/SecurityUtils";
+import VerifyPasscodeModal from "./verify-passcode";
 
-interface Project {
+type WalletSummary = {
   id: string;
-  name: string;
-  budget?: number;
-  totalBudget?: number;
-  status?: string;
-}
+  balance: string | number;
+  availableBalance?: string | number;
+  currency: string;
+  status: string;
+  maxBalance?: string | number;
+  totalInProjectVaults?: string | number;
+  recentTransactions?: WalletTransaction[];
+};
 
-interface EscrowTransaction {
+type WalletTransaction = {
   id: string;
-  type?: string;
-  amount?: string | number;
-  method?: string | null;
+  type: string;
+  amount: string | number;
+  status: string;
   description?: string | null;
-  createdAt?: string;
-}
+  createdAt: string;
+};
 
-interface EscrowAccount {
-  id: string;
+type Vault = {
+  escrowAccountId: string;
   projectId: string;
-  balance?: string | number;
-  lockedBalance?: string | number;
-  currency?: string;
-  transactions?: EscrowTransaction[];
-}
+  projectName: string;
+  projectStatus: string;
+  currency: string;
+  currentBalance: string | number;
+  yourDeposits: string | number;
+  yourReleases: string | number;
+  yourNet: string | number;
+};
 
 export default function ClientPayments() {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const [balanceVisible, setBalanceVisible] = useState(false);
   const [passcodeModal, setPasscodeModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState<'view_balance' | null>(null);
 
-  // ── Load projects from API ──────────────────────────────────────────────────
-  const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
-    queryKey: ['client-projects', refreshKey],
-    queryFn: async () => {
-      const res = await api.get<Project[]>(ENDPOINTS.PROJECTS.LIST);
-      return res.data;
-    },
+  const walletQuery = useQuery({
+    queryKey: ["client-wallet"],
+    queryFn: async () => (await api.get<WalletSummary>(ENDPOINTS.ESCROW_ACCOUNTS.LIST)).data,
     refetchInterval: 10000,
   });
 
-  const escrowQuery = useQuery<EscrowAccount[]>({
-    queryKey: ['client-escrow-accounts', refreshKey],
-    queryFn: async () => (await api.get<EscrowAccount[]>(ENDPOINTS.ESCROW_ACCOUNTS.LIST)).data,
+  const vaultsQuery = useQuery({
+    queryKey: ["client-project-vaults"],
+    queryFn: async () =>
+      (await api.get<{ items: Vault[] }>(ENDPOINTS.ESCROW_ACCOUNTS.PROJECT_VAULTS)).data.items,
     refetchInterval: 10000,
   });
 
-  const escrowByProjectId = useMemo(() => {
-    const map: Record<string, EscrowAccount> = {};
-    for (const escrow of escrowQuery.data || []) {
-      map[escrow.projectId] = escrow;
-    }
-    return map;
-  }, [escrowQuery.data]);
+  const transactionsQuery = useQuery({
+    queryKey: ["client-wallet-transactions"],
+    queryFn: async () =>
+      (
+        await api.get<{ items: WalletTransaction[] }>(
+          ENDPOINTS.ESCROW_ACCOUNTS.TRANSACTIONS,
+          { params: { limit: 5 } },
+        )
+      ).data.items,
+    refetchInterval: 10000,
+  });
 
   useFocusEffect(
     useCallback(() => {
       (async () => {
         const ready = await hasPasscode();
-        if (!ready) {
-          router.push('/(client)/payments/passcode-setup' as never);
-        }
+        if (!ready) router.push("/(client)/payments/passcode-setup" as never);
       })();
-    }, [])
+    }, []),
   );
 
-  const onRefresh = async () => {
+  const wallet = walletQuery.data;
+  const vaults = vaultsQuery.data || [];
+  const recentTransactions = transactionsQuery.data || wallet?.recentTransactions || [];
+  const walletBalance = Number(wallet?.availableBalance ?? wallet?.balance ?? 0);
+  const totalProjectVaults = useMemo(
+    () => vaults.reduce((sum, vault) => sum + Number(vault.currentBalance || 0), 0),
+    [vaults],
+  );
+  const walletLimit = Number(wallet?.maxBalance || 100000);
+  const walletPercent = walletLimit > 0 ? Math.min(100, Math.round((walletBalance / walletLimit) * 100)) : 0;
+
+  const refresh = async () => {
     setRefreshing(true);
-    setRefreshKey(k => k + 1);
-    await escrowQuery.refetch();
+    await Promise.all([
+      walletQuery.refetch(),
+      vaultsQuery.refetch(),
+      transactionsQuery.refetch(),
+    ]);
     setRefreshing(false);
   };
 
-  // ── Passcode gate ───────────────────────────────────────────────────────────
-  const requirePasscode = (action: typeof pendingAction, onUnlocked: () => void) => {
+  const unlockBalance = () => {
+    if (balanceVisible) {
+      setBalanceVisible(false);
+      return;
+    }
     if (isPasscodeSessionUnlocked()) {
-      onUnlocked();
+      setBalanceVisible(true);
     } else {
-      setPendingAction(action);
       setPasscodeModal(true);
     }
   };
 
-  const onPasscodeSuccess = () => {
-    if (pendingAction === 'view_balance') setBalanceVisible(true);
-    setPasscodeModal(false);
-    setPendingAction(null);
+  const fundGeneralWallet = () => {
+    router.push({ pathname: "/(client)/payments/deposit", params: { target: "general" } } as never);
   };
 
-  // ── Derived totals ──────────────────────────────────────────────────────────
-  const totalBalance = Object.values(escrowByProjectId).reduce((s, escrow) => s + Number(escrow.balance || 0), 0);
-  const totalBudget = projects.reduce((s, project) => s + Number(project.budget ?? project.totalBudget ?? 0), 0);
+  const fundProjectWallet = (vault: Vault) => {
+    router.push({
+      pathname: "/(client)/payments/deposit",
+      params: {
+        target: "project",
+        vaultId: vault.escrowAccountId,
+        projectName: vault.projectName,
+      },
+    } as never);
+  };
 
-  const handleAddFunds = (project: Project) => {
-    requirePasscode(null, () => {
-      router.push({
-        pathname: '/(client)/payments/deposit', 
-        params: {
-          projectId: project.id,
-          projectName: project.name,
-          budget: String(project.budget ?? project.totalBudget ?? 0),
-          currentBalance: String(escrowByProjectId[project.id]?.balance ?? 0),
+  const deleteVault = useMutation({
+    mutationFn: async (vaultId: string) =>
+      api.delete(ENDPOINTS.ESCROW_ACCOUNTS.DELETE_PROJECT_VAULT(vaultId)),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["client-wallet"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-project-vaults"] }),
+        queryClient.invalidateQueries({ queryKey: ["client-wallet-transactions"] }),
+      ]);
+      Alert.alert("Project wallet deleted", "Remaining balance was returned to your General Wallet.");
+    },
+    onError: (error: any) => {
+      Alert.alert("Delete failed", error?.response?.data?.message || "Could not delete project wallet.");
+    },
+  });
+
+  const confirmDeleteVault = (vault: Vault) => {
+    Alert.alert(
+      "Delete project wallet?",
+      `This removes ${vault.projectName}'s project wallet and returns available balance to your General Wallet.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deleteVault.mutate(vault.escrowAccountId),
         },
-      } as never);
-    });
+      ],
+    );
   };
 
-  const handleWithdraw = (project: Project) => {
-    const escrow = escrowByProjectId[project.id];
-    const balance = Number(escrow?.balance || 0);
-    if (!escrow || balance === 0) return;
-    requirePasscode(null, () => {
-      router.push({
-        pathname: '/(client)/payments/withdraw',
-        params: {
-          vaultId: escrow.id,
-          projectId: project.id,
-          balance: String(balance),
-        },
-      } as never);
-    });
-  };
-
-  if (projectsLoading || escrowQuery.isLoading) {
+  if (walletQuery.isLoading || vaultsQuery.isLoading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+        <View style={{ alignItems: "center", flex: 1, justifyContent: "center" }}>
+          <ActivityIndicator color={COLORS.PRIMARY} size="large" />
         </View>
       </SafeAreaView>
     );
@@ -162,390 +186,197 @@ export default function ClientPayments() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <ScrollView
+        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[COLORS.PRIMARY]} />
+        }
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.PRIMARY]} />}
       >
-        {/* ── Header ── */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4 }}>
-          <Text style={{ fontSize: 26, fontWeight: 'bold', color: COLORS.TEXT_PRIMARY }}>
-            Project Wallets
+        <View style={{ marginBottom: 18 }}>
+          <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 12, fontWeight: "900" }}>
+            CLIENT WALLET
           </Text>
-          <Text style={{ fontSize: 13, color: COLORS.TEXT_SECONDARY, marginTop: 3 }}>
-            Manage funds for each of your projects
+          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 30, fontWeight: "900" }}>
+            Payments
+          </Text>
+          <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20, marginTop: 4 }}>
+            Fund your General Wallet, then allocate money into project wallets.
           </Text>
         </View>
 
-        {/* ── Total Balance Card ── */}
-        <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
-          <View style={{
-            borderRadius: 22,
-            overflow: 'hidden',
-            backgroundColor: COLORS.INK,
-            padding: 24,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.18,
-            shadowRadius: 16,
-            elevation: 8,
-          }}>
-            {/* Top row */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View>
-                <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '600', letterSpacing: 0.5 }}>
-                  TOTAL FUNDED
-                </Text>
-                <Text style={{ color: '#fff', fontSize: 30, fontWeight: 'bold', marginTop: 4 }}>
-                  {balanceVisible ? formatRWF(totalBalance) : '••••••'}
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => {
-                  if (balanceVisible) {
-                    setBalanceVisible(false);
-                  } else {
-                    requirePasscode('view_balance', () => setBalanceVisible(true));
-                  }
-                }}
-                style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, padding: 10 }}
-              >
-                <Ionicons
-                  name={balanceVisible ? 'eye-outline' : 'eye-off-outline'}
-                  size={22}
-                  color="#fff"
-                />
-              </Pressable>
+        <View style={{ backgroundColor: COLORS.INK, borderRadius: 8, padding: 20 }}>
+          <View style={{ alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" }}>
+            <View>
+              <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, fontWeight: "900" }}>
+                GENERAL WALLET
+              </Text>
+              <Text style={{ color: "#FFF", fontSize: 32, fontWeight: "900", marginTop: 5 }}>
+                {balanceVisible ? formatRWF(walletBalance) : "••••••"}
+              </Text>
+              <Text style={{ color: "#CBD5E1", fontSize: 12, marginTop: 4 }}>
+                Limit: {formatRWF(walletLimit)}
+              </Text>
             </View>
+            <Pressable
+              onPress={unlockBalance}
+              style={{ backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 8, padding: 10 }}
+            >
+              <Ionicons
+                name={balanceVisible ? "eye-outline" : "eye-off-outline"}
+                size={22}
+                color="#FFF"
+              />
+            </Pressable>
+          </View>
 
-            {/* Divider */}
-            <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 16 }} />
+          <View style={{ backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 4, height: 7, marginTop: 18, overflow: "hidden" }}>
+            <View style={{ backgroundColor: COLORS.PRIMARY, height: "100%", width: `${walletPercent}%` }} />
+          </View>
 
-            {/* Stats row */}
-            <View style={{ flexDirection: 'row', gap: 24 }}>
-              <View>
-                <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>PROJECTS</Text>
-                <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 2 }}>
-                  {projects.length}
-                </Text>
-              </View>
-              <View>
-                <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>TOTAL BUDGET</Text>
-                <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 2 }}>
-                  {balanceVisible ? formatRWF(totalBudget) : '••••••'}
-                </Text>
-              </View>
-              {totalBudget > 0 && (
-                <View>
-                  <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>FUNDED</Text>
-                  <Text style={{ color: COLORS.SUCCESS, fontSize: 18, fontWeight: '700', marginTop: 2 }}>
-                    {Math.round((totalBalance / totalBudget) * 100)}%
-                  </Text>
-                </View>
-              )}
+          <View style={{ flexDirection: "row", gap: 16, marginTop: 18 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: "800" }}>
+                PROJECT VAULTS
+              </Text>
+              <Text style={{ color: "#FFF", fontSize: 18, fontWeight: "900", marginTop: 2 }}>
+                {balanceVisible ? formatRWF(totalProjectVaults) : "••••••"}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: "800" }}>
+                STATUS
+              </Text>
+              <Text style={{ color: "#FFF", fontSize: 18, fontWeight: "900", marginTop: 2 }}>
+                {wallet?.status || "active"}
+              </Text>
             </View>
           </View>
-        </View>
 
-        {/* ── Quick Actions ── */}
-        <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, marginBottom: 20 }}>
           <Pressable
-            onPress={() => router.push('/(client)/payments/passcode-setup' as never)}
-            style={({ pressed }) => ({
-              flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-              gap: 8, paddingVertical: 14, borderRadius: 14,
-              backgroundColor: pressed ? COLORS.PRIMARY + 'DD' : COLORS.PRIMARY,
-            })}
+            onPress={fundGeneralWallet}
+            style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY, borderRadius: 8, flexDirection: "row", gap: 8, justifyContent: "center", marginTop: 20, paddingVertical: 14 }}
           >
-            <Ionicons name="add-circle-outline" size={20} color="#fff" />
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Change Passcode</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/(client)/create-project')}
-            style={({ pressed }) => ({
-              flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-              gap: 8, paddingVertical: 14, borderRadius: 14,
-              backgroundColor: COLORS.SURFACE,
-              borderWidth: 1, borderColor: COLORS.BORDER_LIGHT,
-              opacity: pressed ? 0.7 : 1,
-            })}
-          >
-            <Ionicons name="briefcase-outline" size={20} color={COLORS.PRIMARY} />
-            <Text style={{ color: COLORS.PRIMARY, fontWeight: '700', fontSize: 14 }}>New Project</Text>
+            <Ionicons name="add-circle-outline" size={20} color="#FFF" />
+            <Text style={{ color: "#FFF", fontWeight: "900" }}>Fund General Wallet</Text>
           </Pressable>
         </View>
 
-        {/* ── Linked Accounts (Bank of Kigali & Mobile Money) ── */}
-        {/* <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
-          <Text style={{ fontSize: 17, fontWeight: '700', color: COLORS.TEXT_PRIMARY, marginBottom: 10 }}>
-            Linked Payment Sources
-          </Text>
-          <View style={{ gap: 10 }}>
-            {bankAccounts.map(acc => (
-              <View
-                key={acc.type}
-                style={{
-                  backgroundColor: COLORS.SURFACE,
-                  borderColor: COLORS.BORDER_LIGHT,
-                  borderWidth: 1,
-                  borderRadius: 14,
-                  padding: 14,
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <View style={{
-                    width: 40, height: 40, borderRadius: 20,
-                    backgroundColor: acc.type === 'bk' ? '#007E6E15' : '#FFD70015',
-                    alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <Ionicons 
-                      name={acc.type === 'bk' ? 'business-outline' : 'phone-portrait-outline'} 
-                      size={20} 
-                      color={acc.type === 'bk' ? COLORS.PRIMARY : '#D97706'} 
-                    />
-                  </View>
-                  <View>
-                    <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: 'bold', fontSize: 14 }}>
-                      {acc.bankName}
-                    </Text>
-                    <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11, marginTop: 1 }}>
-                      {acc.linked ? `Linked • ${acc.accountNumber}` : 'Not Connected'}
-                    </Text>
-                  </View>
-                </View>
-                
-                <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                  {acc.linked ? (
-                    <>
-                      <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: 'bold', fontSize: 13 }}>
-                        {formatRWF(acc.balance)}
-                      </Text>
-                      <Pressable 
-                        onPress={() => unlinkBankAccount(acc.type)}
-                        style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#FEE2E2', borderRadius: 6 }}
-                      >
-                        <Text style={{ color: COLORS.ERROR, fontSize: 10, fontWeight: 'bold' }}>Unlink</Text>
-                      </Pressable>
-                    </>
-                  ) : (
-                    <Pressable 
-                      onPress={() => {
-                        Alert.prompt(
-                          `Connect ${acc.bankName}`,
-                          `Enter your ${acc.type === 'bk' ? 'Account Number' : 'MoMo Phone Number'}:`,
-                          [
-                            { text: 'Cancel' },
-                            { 
-                              text: 'Link', 
-                              onPress: (val:any) => {
-                                if (val) {
-                                  linkBankAccount(acc.type, { 
-                                    accountName: `Client Account - ${acc.type.toUpperCase()}`, 
-                                    accountNumber: val 
-                                  });
-                                }
-                              } 
-                            }
-                          ]
-                        );
-                      }}
-                      style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 8 }}
-                    >
-                      <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 11, fontWeight: 'bold' }}>Connect</Text>
-                    </Pressable>
-                  )}
-                </View>
-              </View>
-            ))}
+        <View style={{ marginTop: 22 }}>
+          <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
+            <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900" }}>
+              Project Wallets
+            </Text>
+            <Pressable onPress={() => router.push("/(client)/create-project" as never)}>
+              <Text style={{ color: COLORS.PRIMARY, fontWeight: "900" }}>New Project</Text>
+            </Pressable>
           </View>
-        </View> */} 
 
-        {/* ── Project Wallet Cards ── */}
-        <View style={{ paddingHorizontal: 20 }}>
-          <Text style={{ fontSize: 17, fontWeight: '700', color: COLORS.TEXT_PRIMARY, marginBottom: 14 }}>
-            Project Wallets
-          </Text>
-
-          {projects.length === 0 ? (
-            <View style={{
-              backgroundColor: COLORS.SURFACE, borderRadius: 18,
-              padding: 36, alignItems: 'center',
-              borderWidth: 1, borderColor: COLORS.BORDER_LIGHT,
-            }}>
-              <Ionicons name="wallet-outline" size={52} color={COLORS.TEXT_LIGHT} />
-              <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.TEXT_PRIMARY, marginTop: 14 }}>
-                No Projects Yet
+          {vaults.length === 0 ? (
+            <View style={{ alignItems: "center", backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 8, borderWidth: 1, padding: 24 }}>
+              <Ionicons name="folder-open-outline" size={42} color={COLORS.TEXT_LIGHT} />
+              <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: "900", marginTop: 10 }}>
+                No project wallet yet
               </Text>
-              <Text style={{ fontSize: 13, color: COLORS.TEXT_SECONDARY, textAlign: 'center', marginTop: 6 }}>
-                Create a project to get a dedicated wallet for tracking funds.
+              <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13, lineHeight: 19, marginTop: 4, textAlign: "center" }}>
+                Create a project to get a dedicated project wallet.
               </Text>
-              <Pressable
-                onPress={() => router.push('/(client)/create-project')}
-                style={{
-                  marginTop: 18, backgroundColor: COLORS.PRIMARY,
-                  paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20,
-                }}
-              >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Create Project</Text>
-              </Pressable>
             </View>
           ) : (
-            projects.map(project => {
-              const escrow = escrowByProjectId[project.id];
-              const balance = Number(escrow?.balance || 0);
-              const budget = Number(project.budget ?? project.totalBudget ?? 0);
-              const pct = budget > 0 ? Math.min(100, Math.round((balance / budget) * 100)) : 0;
-              const recentTx = escrow?.transactions?.[0];
+            <View style={{ gap: 12 }}>
+              {vaults.map((vault) => {
+                const balance = Number(vault.currentBalance || 0);
+                return (
+                  <View
+                    key={vault.escrowAccountId}
+                    style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 8, borderWidth: 1, padding: 16 }}
+                  >
+                    <View style={{ alignItems: "center", flexDirection: "row", gap: 12 }}>
+                      <View style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 8, height: 42, justifyContent: "center", width: 42 }}>
+                        <Ionicons name="briefcase-outline" size={20} color={COLORS.PRIMARY} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text numberOfLines={1} style={{ color: COLORS.TEXT_PRIMARY, fontSize: 15, fontWeight: "900" }}>
+                          {vault.projectName}
+                        </Text>
+                        <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 2 }}>
+                          {vault.projectStatus} • {vault.currency}
+                        </Text>
+                      </View>
+                    </View>
 
-              return (
-                <View
-                  key={project.id}
-                  style={{
-                    backgroundColor: COLORS.SURFACE,
-                    borderRadius: 18,
-                    padding: 18,
-                    marginBottom: 14,
-                    borderWidth: 1,
-                    borderColor: COLORS.BORDER_LIGHT,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 6,
-                    elevation: 2,
-                  }}
-                >
-                  {/* Project name row */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                    <View style={{
-                      width: 40, height: 40, borderRadius: 20,
-                      backgroundColor: COLORS.PRIMARY_LIGHT,
-                      alignItems: 'center', justifyContent: 'center', marginRight: 12,
-                    }}>
-                      <Ionicons name="business-outline" size={20} color={COLORS.PRIMARY} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '700', color: COLORS.TEXT_PRIMARY }} numberOfLines={1}>
-                        {project.name}
+                    <View style={{ marginTop: 14 }}>
+                      <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>
+                        PROJECT WALLET BALANCE
                       </Text>
-                      <Text style={{ fontSize: 12, color: COLORS.TEXT_SECONDARY, marginTop: 1 }}>
-                        {escrow?.transactions?.length ?? 0} transaction{(escrow?.transactions?.length ?? 0) !== 1 ? 's' : ''}
+                      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 24, fontWeight: "900", marginTop: 3 }}>
+                        {balanceVisible ? formatRWF(balance) : "••••••"}
                       </Text>
                     </View>
-                    <View style={{
-                      backgroundColor: pct >= 100 ? COLORS.SUCCESS + '20' : COLORS.PRIMARY_LIGHT,
-                      paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
-                    }}>
-                      <Text style={{
-                        fontSize: 12, fontWeight: '700',
-                        color: pct >= 100 ? COLORS.SUCCESS : COLORS.PRIMARY,
-                      }}>
-                        {pct}% funded
-                      </Text>
+
+                    <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+                      <Pressable
+                        onPress={() => fundProjectWallet(vault)}
+                        style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY, borderRadius: 8, flex: 1, flexDirection: "row", gap: 7, justifyContent: "center", paddingVertical: 12 }}
+                      >
+                        <Ionicons name="arrow-down-circle-outline" size={18} color="#FFF" />
+                        <Text style={{ color: "#FFF", fontWeight: "900" }}>Transfer Funds</Text>
+                      </Pressable>
+                      <Pressable
+                        disabled={deleteVault.isPending}
+                        onPress={() => confirmDeleteVault(vault)}
+                        style={{ alignItems: "center", borderColor: COLORS.ERROR, borderRadius: 8, borderWidth: 1, justifyContent: "center", opacity: deleteVault.isPending ? 0.5 : 1, paddingHorizontal: 13 }}
+                      >
+                        <Ionicons name="trash-outline" size={18} color={COLORS.ERROR} />
+                      </Pressable>
                     </View>
                   </View>
-
-                  {/* Balance */}
-                  <View style={{ marginBottom: 12 }}>
-                    <Text style={{ fontSize: 11, color: COLORS.TEXT_LIGHT, fontWeight: '600', letterSpacing: 0.4 }}>
-                      CURRENT BALANCE
-                    </Text>
-                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: COLORS.TEXT_PRIMARY, marginTop: 2 }}>
-                      {balanceVisible ? formatRWF(balance) : '•••••••'}
-                    </Text>
-                    {budget > 0 && (
-                      <Text style={{ fontSize: 12, color: COLORS.TEXT_SECONDARY, marginTop: 2 }}>
-                        of {formatRWF(budget)} budget
-                      </Text>
-                    )}
-                  </View>
-
-                  {/* Progress bar */}
-                  {budget > 0 && (
-                    <View style={{
-                      height: 6, backgroundColor: COLORS.MUTED,
-                      borderRadius: 3, marginBottom: 14, overflow: 'hidden',
-                    }}>
-                      <View style={{
-                        height: '100%', borderRadius: 3,
-                        width: `${pct}%`,
-                        backgroundColor: pct >= 100 ? COLORS.SUCCESS : COLORS.PRIMARY,
-                      }} />
-                    </View>
-                  )}
-
-                  {/* Last transaction */}
-                  {recentTx && (
-                    <View style={{
-                      flexDirection: 'row', alignItems: 'center',
-                      backgroundColor: COLORS.MUTED, borderRadius: 10,
-                      paddingHorizontal: 12, paddingVertical: 8, marginBottom: 14,
-                    }}>
-                      <Ionicons
-                        name={recentTx.type === 'deposit' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'}
-                        size={16}
-                        color={recentTx.type === 'deposit' ? COLORS.SUCCESS : COLORS.ERROR}
-                      />
-                      <Text style={{ flex: 1, fontSize: 12, color: COLORS.TEXT_SECONDARY, marginLeft: 8 }}>
-                        {recentTx.type === 'deposit' ? '+' : '-'}{formatRWF(Number(recentTx.amount || 0))} via {recentTx.method || recentTx.description || 'escrow'}
-                      </Text>
-                      <Text style={{ fontSize: 11, color: COLORS.TEXT_LIGHT }}>
-                        {recentTx.createdAt ? new Date(recentTx.createdAt).toLocaleDateString() : ''}
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Action buttons */}
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <Pressable
-                      onPress={() => handleAddFunds(project)}
-                      style={({ pressed }) => ({
-                        flex: 1, flexDirection: 'row', alignItems: 'center',
-                        justifyContent: 'center', gap: 6,
-                        backgroundColor: pressed ? COLORS.PRIMARY + 'DD' : COLORS.PRIMARY,
-                        paddingVertical: 11, borderRadius: 12,
-                      })}
-                    >
-                      <Ionicons name="add" size={18} color="#fff" />
-                      <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Add Funds</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => handleWithdraw(project)}
-                      disabled={balance === 0}
-                      style={({ pressed }) => ({
-                        flex: 1, flexDirection: 'row', alignItems: 'center',
-                        justifyContent: 'center', gap: 6,
-                        backgroundColor: COLORS.SURFACE,
-                        borderWidth: 1,
-                        borderColor: balance === 0 ? COLORS.BORDER_LIGHT : COLORS.PRIMARY,
-                        paddingVertical: 11, borderRadius: 12,
-                        opacity: pressed ? 0.7 : balance === 0 ? 0.4 : 1,
-                      })}
-                    >
-                      <Ionicons name="arrow-up-outline" size={18} color={balance === 0 ? COLORS.TEXT_LIGHT : COLORS.PRIMARY} />
-                      <Text style={{
-                        fontSize: 14, fontWeight: '700',
-                        color: balance === 0 ? COLORS.TEXT_LIGHT : COLORS.PRIMARY,
-                      }}>
-                        Withdraw
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })
+                );
+              })}
+            </View>
           )}
         </View>
 
-        <View style={{ height: 32 }} />
+        <View style={{ marginTop: 22 }}>
+          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900", marginBottom: 12 }}>
+            Recent Wallet Activity
+          </Text>
+          <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 8, borderWidth: 1, padding: 14 }}>
+            {recentTransactions.length === 0 ? (
+              <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13 }}>No wallet transactions yet.</Text>
+            ) : (
+              <View style={{ gap: 10 }}>
+                {recentTransactions.map((tx) => (
+                  <View key={tx.id} style={{ alignItems: "center", flexDirection: "row", gap: 10 }}>
+                    <Ionicons
+                      name={Number(tx.amount) >= 0 ? "arrow-down-circle-outline" : "arrow-up-circle-outline"}
+                      size={20}
+                      color={Number(tx.amount) >= 0 ? COLORS.SUCCESS : COLORS.ERROR}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "800" }}>{tx.type.replace(/_/g, " ")}</Text>
+                      <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11 }}>
+                        {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : ""}
+                      </Text>
+                    </View>
+                    <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>
+                      {balanceVisible ? formatRWF(Math.abs(Number(tx.amount || 0))) : "••••"}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </View>
       </ScrollView>
 
-      {/* Passcode Modal */}
       <VerifyPasscodeModal
-        visible={passcodeModal}
-        onClose={() => { setPasscodeModal(false); setPendingAction(null); }}
-        onSuccess={onPasscodeSuccess}
         actionType="unlock_balance"
+        onClose={() => setPasscodeModal(false)}
+        onSuccess={() => {
+          setBalanceVisible(true);
+          setPasscodeModal(false);
+        }}
+        visible={passcodeModal}
       />
     </SafeAreaView>
   );

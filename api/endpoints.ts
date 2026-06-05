@@ -96,6 +96,13 @@ export const ENDPOINTS = {
   },
   ESCROW_ACCOUNTS: {
     LIST: "/escrow-accounts",
+    TRANSACTIONS: "/escrow-accounts/transactions",
+    FUND: "/escrow-accounts/fund",
+    CONFIRM_FUNDING: (fundingId: string) => `/escrow-accounts/fund/${fundingId}/confirm`,
+    TRANSFER_TO_VAULT: "/escrow-accounts/transfer-to-vault",
+    PROJECT_VAULTS: "/escrow-accounts/project-vaults",
+    PROJECT_VAULT_DETAIL: (id: string) => `/escrow-accounts/project-vaults/${id}`,
+    DELETE_PROJECT_VAULT: (id: string) => `/escrow-accounts/project-vaults/${id}`,
     DETAIL: (id: string) => `/escrow-accounts/${id}`,
     DEPOSIT: (id: string) => `/escrow-accounts/${id}/deposit`,
     WITHDRAW: (id: string) => `/escrow-accounts/${id}/withdraw`,
