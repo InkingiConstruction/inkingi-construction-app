@@ -202,9 +202,13 @@ export default function RegisterFlow() {
         try {
           const parsed: RegistrationData = JSON.parse(saved);
           if (parsed.basic?.role) {
-            setRole(parsed.basic.role);
-            setRoleSelected(true);
-            setData(parsed);
+            if (shouldPersistDraft(parsed)) {
+              setRole(parsed.basic.role);
+              setRoleSelected(true);
+              setData(parsed);
+            } else {
+              await safeRemoveItem(STORAGE_KEY);
+            }
           }
         } catch {
           /* corrupt data — start fresh */
@@ -227,7 +231,11 @@ export default function RegisterFlow() {
     (updates: Partial<RegistrationData>) => {
       setData((prev) => {
         const next = { ...prev, ...updates };
-        persist(next);
+        if (shouldPersistDraft(next)) {
+          persist(next);
+        } else {
+          safeRemoveItem(STORAGE_KEY);
+        }
         return next;
       });
     },
@@ -296,7 +304,7 @@ export default function RegisterFlow() {
         kycStatus: "submitted",
       });
       await safeRemoveItem(STORAGE_KEY);
-      handleUpdate({ currentStep: currentStep + 1 });
+      setData((prev) => ({ ...prev, currentStep: currentStep + 1 }));
     } catch (err: any) {
       alert(
         err?.response?.data?.message ||
@@ -379,6 +387,12 @@ function getSteps(role: UserRole): string[] {
     default:
       return base;
   }
+}
+
+function shouldPersistDraft(data: RegistrationData): boolean {
+  const role = data.basic?.role || "client";
+  const finalStep = getSteps(role).length - 1;
+  return data.currentStep < finalStep;
 }
 
 function renderStep(role: UserRole, step: number, props: any) {

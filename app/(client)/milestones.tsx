@@ -39,6 +39,12 @@ type ClientMilestoneView = {
   revisionNotes?: string | null;
 };
 
+type ProjectVault = {
+  escrowAccountId: string;
+  projectId: string;
+  currentBalance: string | number;
+};
+
 const toDisputeCategory = (value: "Quality" | "Timeline" | "Cost" | "Other") =>
   value.toLowerCase();
 
@@ -108,13 +114,12 @@ export default function MilestonesScreen() {
   });
 
   const escrowQuery = useQuery({
-    queryKey: ["client-escrow", projectId],
-    enabled: Boolean(projectId),
+    queryKey: ["client-project-vaults"],
     queryFn: async () =>
-      (await api.get<any[]>(ENDPOINTS.ESCROW_ACCOUNTS.LIST, { params: { projectId } })).data,
+      (await api.get<{ items: ProjectVault[] }>(ENDPOINTS.ESCROW_ACCOUNTS.PROJECT_VAULTS)).data.items,
   });
 
-  const activeEscrow = escrowQuery.data?.[0];
+  const activeEscrow = (escrowQuery.data || []).find((vault) => vault.projectId === projectId);
 
   useEffect(() => {
     if (activeProject && !projectId) {
@@ -127,7 +132,7 @@ export default function MilestonesScreen() {
       setWalletBudget(Number(activeProject.budget || activeProject.totalBudget || 0));
     }
     if (activeEscrow) {
-      setWalletBalance(Number(activeEscrow.balance || 0));
+      setWalletBalance(Number(activeEscrow.currentBalance || 0));
     } else {
       setWalletBalance(0);
     }
@@ -164,12 +169,12 @@ export default function MilestonesScreen() {
 
   const releasePaymentMutation = useMutation({
     mutationFn: async (milestone: ClientMilestoneView) => {
-      if (!activeEscrow?.id) {
+      if (!activeEscrow?.escrowAccountId) {
         throw new Error("No escrow account found for this project. Please fund the project first.");
       }
 
       return api.post(ENDPOINTS.TRANSACTIONS.CREATE, {
-        escrowAccountId: activeEscrow.id,
+        escrowAccountId: activeEscrow.escrowAccountId,
         milestoneId: milestone.id,
         type: "release",
         method: "bank_transfer",

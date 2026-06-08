@@ -28,6 +28,7 @@ export default function EngineerMilestones() {
   const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
   const [editingMilestoneId, setEditingMilestoneId] = useState("");
   const [statusActionId, setStatusActionId] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   const projectsQuery = useQuery({
     queryKey: ["engineer-projects"],
@@ -124,10 +125,10 @@ export default function EngineerMilestones() {
     setDurationDays(milestone.durationDays ? String(milestone.durationDays) : "");
     setAcceptanceCriteria(milestone.acceptanceCriteria || milestone.description || "");
   };
-  const refreshing = projectsQuery.isRefetching || milestonesQuery.isRefetching;
-  const refresh = () => {
-    projectsQuery.refetch();
-    milestonesQuery.refetch();
+  const refresh = async () => {
+    setRefreshing(true);
+    await Promise.all([projectsQuery.refetch(), milestonesQuery.refetch()]);
+    setRefreshing(false);
   };
 
   return (
@@ -328,6 +329,8 @@ function MilestoneCard({
 }) {
   const boqTotal = (milestone.boqItems || []).reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
   const color = statusColor(milestone.status);
+  const latestInspection = milestone.inspections?.[0];
+  const supervisorNote = latestInspection?.notes?.trim();
 
   return (
     <View style={styles.milestoneCard}>
@@ -348,6 +351,15 @@ function MilestoneCard({
         <Mini label="BOQ total" value={`${boqTotal.toLocaleString()} RWF`} />
         <Mini label="BOQ" value={milestone._count?.boqItems || 0} />
       </View>
+
+      {supervisorNote ? (
+        <View style={styles.commentBox}>
+          <Text style={styles.commentLabel}>
+            {milestone.status === "revision_required" ? "Supervisor revision comment" : "Supervisor comment"}
+          </Text>
+          <Text style={styles.commentText}>{supervisorNote}</Text>
+        </View>
+      ) : null}
 
       <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
         {["active", "revision_required", "pending"].includes(milestone.status) ? (
@@ -506,6 +518,26 @@ const styles = {
     borderRadius: 8,
     flex: 1,
     padding: 9,
+  },
+  commentBox: {
+    backgroundColor: "#FFFBEB",
+    borderColor: "#FDE68A",
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 10,
+  },
+  commentLabel: {
+    color: COLORS.WARNING,
+    fontSize: 10,
+    fontWeight: "900" as const,
+    marginBottom: 4,
+    textTransform: "uppercase" as const,
+  },
+  commentText: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 12,
+    lineHeight: 18,
   },
   empty: {
     alignItems: "center" as const,

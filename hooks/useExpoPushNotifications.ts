@@ -21,10 +21,19 @@ const getProjectId = () =>
   Constants.expoConfig?.extra?.eas?.projectId ||
   Constants.easConfig?.projectId;
 
+type InAppNotification = {
+  id: string;
+  title: string;
+  body: string;
+  data?: Record<string, unknown> | null;
+};
+
 export function useExpoPushNotifications() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const userId = useAuthStore((state) => state.user?.id);
   const registeredUserId = useRef<string | null>(null);
+  const seenInAppNotificationIds = useRef<Set<string>>(new Set());
+  const initializedInAppFallback = useRef(false);
 
   useEffect(() => {
     if (!isAuthenticated || !userId || registeredUserId.current === userId) {
@@ -83,6 +92,59 @@ export function useExpoPushNotifications() {
 
     return () => {
       cancelled = true;
+    };
+  }, [isAuthenticated, userId]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !userId) {
+      initializedInAppFallback.current = false;
+      seenInAppNotificationIds.current = new Set();
+      return;
+    }
+
+    let cancelled = false;
+
+    const pollInAppNotifications = async () => {
+      try {
+        const response = await api.get<InAppNotification[]>(ENDPOINTS.NOTIFICATIONS.LIST, {
+          params: { channel: "in_app" },
+        });
+        if (cancelled) return;
+
+        const notifications = response.data || [];
+        if (!initializedInAppFallback.current) {
+          notifications.forEach((item) => seenInAppNotificationIds.current.add(item.id));
+          initializedInAppFallback.current = true;
+          return;
+        }
+
+        const newNotifications = notifications
+          .filter((item) => !seenInAppNotificationIds.current.has(item.id))
+          .reverse();
+
+        for (const item of newNotifications) {
+          seenInAppNotificationIds.current.add(item.id);
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: item.title,
+              body: item.body,
+              data: item.data || {},
+              sound: "default",
+            },
+            trigger: null,
+          });
+        }
+      } catch {
+        // Silent fallback: remote Expo push still handles background delivery.
+      }
+    };
+
+    void pollInAppNotifications();
+    const interval = setInterval(pollInAppNotifications, 4000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
     };
   }, [isAuthenticated, userId]);
 }

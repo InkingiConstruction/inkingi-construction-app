@@ -89,6 +89,20 @@ export default function DepositScreen() {
   const fundWallet = useMutation({
     mutationFn: async () => {
       const amountNumber = Number(amount);
+      if (isProjectTransfer && params.vaultId) {
+        await api.post(ENDPOINTS.ESCROW_ACCOUNTS.TRANSFER_TO_VAULT, {
+          escrowAccountId: params.vaultId,
+          amount: amountNumber,
+          description: `Project funding for ${params.projectName || "project"}`,
+        });
+        return {
+          id: params.vaultId,
+          amount: amountNumber,
+          method: "bank_transfer" as FundingMethod,
+          status: "completed",
+        };
+      }
+
       const funding = await api.post<FundingResponse>(ENDPOINTS.ESCROW_ACCOUNTS.FUND, {
         amount: amountNumber,
         method,
@@ -124,14 +138,6 @@ export default function DepositScreen() {
         await api.post(ENDPOINTS.ESCROW_ACCOUNTS.CONFIRM_FUNDING(funding.data.fundingRequest.id));
       }
 
-      if (isProjectTransfer && params.vaultId) {
-        await api.post(ENDPOINTS.ESCROW_ACCOUNTS.TRANSFER_TO_VAULT, {
-          escrowAccountId: params.vaultId,
-          amount: amountNumber,
-          description: `Project funding for ${params.projectName || "project"}`,
-        });
-      }
-
       return funding.data.fundingRequest;
     },
     onSuccess: async () => {
@@ -142,7 +148,7 @@ export default function DepositScreen() {
       ]);
       Alert.alert(
         isProjectTransfer ? "Project wallet funded" : "Wallet funded",
-        method === "stripe" || autoConfirm
+        isProjectTransfer || method === "stripe" || autoConfirm
           ? "Funding was confirmed and balances were updated."
           : "Funding request was created. Balance will update after provider confirmation.",
         [{ text: "OK", onPress: () => router.back() }],
@@ -174,10 +180,10 @@ export default function DepositScreen() {
             <Ionicons name="arrow-back" size={24} color={COLORS.TEXT_PRIMARY} />
           </Pressable>
 
-          <Text style={styles.title}>{isProjectTransfer ? "Fund Project Wallet" : "Fund General Wallet"}</Text>
+          <Text style={styles.title}>{isProjectTransfer ? "Transfer to Project Wallet" : "Fund General Wallet"}</Text>
           <Text style={styles.subtitle}>
             {isProjectTransfer
-              ? `Funds go into your General Wallet first, then transfer to ${params.projectName || "this project"}.`
+              ? `This deducts from your General Wallet and moves money to ${params.projectName || "this project"}.`
               : "Add funds to your General Wallet for future project transfers."}
           </Text>
 
@@ -193,29 +199,31 @@ export default function DepositScreen() {
             />
           </View>
 
-          <View style={{ gap: 10, marginTop: 16 }}>
-            <Text style={styles.label}>Payment method</Text>
-            {METHODS.map((item) => (
-              <Pressable
-                key={item.id}
-                onPress={() => setMethod(item.id)}
-                style={[styles.methodCard, method === item.id && styles.methodCardActive]}
-              >
-                <View style={styles.methodIcon}>
-                  <Ionicons name={item.icon} size={20} color={COLORS.PRIMARY} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.methodTitle}>{item.title}</Text>
-                  <Text style={styles.methodSubtitle}>{item.subtitle}</Text>
-                </View>
-                {method === item.id ? (
-                  <Ionicons name="checkmark-circle" size={22} color={COLORS.PRIMARY} />
-                ) : null}
-              </Pressable>
-            ))}
-          </View>
+          {!isProjectTransfer ? (
+            <View style={{ gap: 10, marginTop: 16 }}>
+              <Text style={styles.label}>Payment method</Text>
+              {METHODS.map((item) => (
+                <Pressable
+                  key={item.id}
+                  onPress={() => setMethod(item.id)}
+                  style={[styles.methodCard, method === item.id && styles.methodCardActive]}
+                >
+                  <View style={styles.methodIcon}>
+                    <Ionicons name={item.icon} size={20} color={COLORS.PRIMARY} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.methodTitle}>{item.title}</Text>
+                    <Text style={styles.methodSubtitle}>{item.subtitle}</Text>
+                  </View>
+                  {method === item.id ? (
+                    <Ionicons name="checkmark-circle" size={22} color={COLORS.PRIMARY} />
+                  ) : null}
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
 
-          {selectedMethod.requiresPhone ? (
+          {!isProjectTransfer && selectedMethod.requiresPhone ? (
             <View style={[styles.card, { marginTop: 16 }]}>
               <Text style={styles.label}>Phone number</Text>
               <TextInput
@@ -229,7 +237,7 @@ export default function DepositScreen() {
             </View>
           ) : null}
 
-          {method !== "stripe" ? (
+          {!isProjectTransfer && method !== "stripe" ? (
             <Pressable
               onPress={() => setAutoConfirm((value) => !value)}
               style={styles.confirmToggle}
@@ -259,7 +267,7 @@ export default function DepositScreen() {
               <>
                 <Ionicons name="wallet-outline" size={20} color="#FFF" />
                 <Text style={styles.submitText}>
-                  {isProjectTransfer ? "Fund Project Wallet" : "Fund General Wallet"}
+                  {isProjectTransfer ? "Transfer to Project Wallet" : "Fund General Wallet"}
                 </Text>
               </>
             )}

@@ -14,6 +14,7 @@ export const ENDPOINTS = {
   NOTIFICATIONS: {
     LIST: "/notifications",
     EXPO_TOKEN: "/notifications/expo-token",
+    TEST_PUSH: "/notifications/test-push",
     DETAIL: (id: string) => `/notifications/${id}`,
   },
   MESSAGES: {

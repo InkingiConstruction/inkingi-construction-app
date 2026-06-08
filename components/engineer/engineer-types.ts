@@ -47,6 +47,13 @@ export type EngineerMilestone = {
   acceptanceCriteria?: string | null;
   project?: EngineerProject;
   boqItems?: EngineerBoqItem[];
+  inspections?: {
+    id: string;
+    decision?: string | null;
+    notes?: string | null;
+    createdAt?: string;
+    supervisor?: EngineerUser | null;
+  }[];
   _count?: {
     boqItems?: number;
     inspections?: number;

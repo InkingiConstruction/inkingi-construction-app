@@ -49,6 +49,7 @@ export default function SupervisorInspections() {
   const [notes, setNotes] = useState("");
   const [rating, setRating] = useState("5");
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   const milestonesQuery = useQuery({
     queryKey: ["supervisor-milestones", params.projectId],
@@ -110,6 +111,12 @@ export default function SupervisorInspections() {
     setSheetOpen(true);
   };
 
+  const refresh = async () => {
+    setRefreshing(true);
+    await milestonesQuery.refetch();
+    setRefreshing(false);
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.BACKGROUND }}>
       <FlatList
@@ -135,8 +142,8 @@ export default function SupervisorInspections() {
         }
         refreshControl={
           <RefreshControl
-            refreshing={milestonesQuery.isRefetching}
-            onRefresh={milestonesQuery.refetch}
+            refreshing={refreshing}
+            onRefresh={refresh}
             tintColor={COLORS.PRIMARY}
           />
         }

@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useCallback, useState } from "react";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
@@ -27,14 +28,28 @@ type NotificationItem = {
 export function NotificationsScreen() {
   const queryClient = useQueryClient();
   const role = useAuthStore((state) => state.user?.role);
+  const [refreshing, setRefreshing] = useState(false);
   const notificationsQuery = useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
       const response = await api.get<NotificationItem[]>(ENDPOINTS.NOTIFICATIONS.LIST);
       return response.data;
     },
-    refetchInterval: 10000,
+    refetchInterval: 3000,
+    refetchIntervalInBackground: true,
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      notificationsQuery.refetch();
+    }, [notificationsQuery.refetch]),
+  );
+
+  const refresh = async () => {
+    setRefreshing(true);
+    await notificationsQuery.refetch();
+    setRefreshing(false);
+  };
 
   const markRead = useMutation({
     mutationFn: (id: string) =>
@@ -106,8 +121,8 @@ export function NotificationsScreen() {
             contentContainerStyle={{ gap: 12, paddingBottom: 120 }}
             refreshControl={
               <RefreshControl
-                refreshing={notificationsQuery.isRefetching}
-                onRefresh={notificationsQuery.refetch}
+                refreshing={refreshing}
+                onRefresh={refresh}
                 tintColor={COLORS.PRIMARY}
               />
             }
