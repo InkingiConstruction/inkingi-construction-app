@@ -21,6 +21,8 @@ import {
   unlockPasscodeSession,
 } from '@/utils/SecurityUtils';
 
+const PIN_LENGTH = 4;
+
 interface VerifyPasscodeModalProps {
   visible: boolean;
   onClose: () => void;
@@ -59,7 +61,7 @@ export default function VerifyPasscodeModal({
   }, [lockoutTimer]);
 
   const handleSubmit = async (codeToSubmit: string) => {
-    if (codeToSubmit.length !== 6) return;
+    if (codeToSubmit.length !== PIN_LENGTH) return;
     setLoading(true);
     setError('');
     try {
@@ -89,10 +91,10 @@ export default function VerifyPasscodeModal({
     setError('');
     if (key === 'delete') {
       setPasscode(prev => prev.slice(0, -1));
-    } else if (passcode.length < 6) {
+    } else if (passcode.length < PIN_LENGTH) {
       const nextCode = passcode + key;
       setPasscode(nextCode);
-      if (nextCode.length === 6) {
+      if (nextCode.length === PIN_LENGTH) {
         setTimeout(() => handleSubmit(nextCode), 250);
       }
     }
@@ -109,7 +111,7 @@ export default function VerifyPasscodeModal({
 
   const renderDots = () => (
     <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 14 }}>
-      {Array.from({ length: 6 }).map((_, i) => {
+      {Array.from({ length: PIN_LENGTH }).map((_, i) => {
         const filled = i < passcode.length;
         return (
           <View
@@ -238,7 +240,7 @@ export default function VerifyPasscodeModal({
               </Text>
             ) : null}
             <Text style={{ fontSize: 13, color: COLORS.TEXT_SECONDARY, marginTop: 8, textAlign: 'center', lineHeight: 18 }}>
-              Enter your 6-digit passcode to{'\n'}authorize this action
+              Enter your 4-digit payment PIN to{'\n'}authorize this action
             </Text>
           </View>
 

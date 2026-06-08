@@ -1,7 +1,7 @@
 // app/(client)/payments/passcode-setup.tsx
 /**
  * @fileoverview Passcode setup screen for financial transactions
- * User must set a 6-digit passcode to authorize payments
+ * User must set a 4-digit PIN to authorize payments
  */
 
 import React, { useState } from 'react';
@@ -17,6 +17,8 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/colors';
 import { storePasscode } from '@/utils/SecurityUtils';
+
+const PIN_LENGTH = 4;
 
 export default function PasscodeSetup() {
   const [passcode, setPasscode] = useState('');
@@ -37,11 +39,11 @@ export default function PasscodeSetup() {
       }
     } else {
       const code = step === 'create' ? passcode : confirmPasscode;
-      if (code.length < 6) {
+      if (code.length < PIN_LENGTH) {
         const nextCode = code + key;
         if (step === 'create') {
           setPasscode(nextCode);
-          if (nextCode.length === 6) {
+          if (nextCode.length === PIN_LENGTH) {
             // Wait 250ms so user sees the last digit filled, then switch steps
             setTimeout(() => {
               setStep('confirm');
@@ -51,7 +53,7 @@ export default function PasscodeSetup() {
           }
         } else {
           setConfirmPasscode(nextCode);
-          if (nextCode.length === 6) {
+          if (nextCode.length === PIN_LENGTH) {
             setTimeout(() => {
               handleSubmit(nextCode);
             }, 250);
@@ -101,7 +103,7 @@ export default function PasscodeSetup() {
   const renderBoxes = () => {
     const boxes = [];
     const length = currentCode.length;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < PIN_LENGTH; i++) {
       const isFilled = i < length;
       boxes.push(
         <View
@@ -229,8 +231,8 @@ export default function PasscodeSetup() {
             </Text>
             <Text style={{ fontSize: 14, color: COLORS.TEXT_SECONDARY, textAlign: 'center', marginTop: 8, paddingHorizontal: 12 }}>
               {step === 'create'
-                ? 'Create a 6-digit passcode to authorize transactions and secure your balance.'
-                : 'Please re-enter your 6-digit passcode to confirm.'}
+                ? 'Create a 4-digit payment PIN to authorize releases and secure your balance.'
+                : 'Please re-enter your 4-digit payment PIN to confirm.'}
             </Text>
           </View>
         </View>

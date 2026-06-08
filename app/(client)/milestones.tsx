@@ -22,7 +22,7 @@ import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { ClientTopBar } from "@/components/client/client-top-bar";
 import { formatRWF } from "@/utils/projectFunds";
-import { verifyPasscode } from "@/utils/SecurityUtils";
+import { hasPasscode, verifyPasscode } from "@/utils/SecurityUtils";
 
 const { width } = Dimensions.get("window");
 
@@ -51,6 +51,9 @@ const toDisputeCategory = (value: "Quality" | "Timeline" | "Cost" | "Other") =>
 const toMilestoneView = (milestone: any, project: any): ClientMilestoneView => {
   const budgetPercentage = Number(milestone.budgetPercentage || 0);
   const projectBudget = Number(project?.budget || project?.totalBudget || 0);
+  const boqTotal = Array.isArray(milestone.boqItems)
+    ? milestone.boqItems.reduce((sum: number, item: any) => sum + Number(item.totalPrice || 0), 0)
+    : 0;
   const status = milestone.status === "paid" ? "completed" : milestone.status;
   const progressPhotos = Array.isArray(milestone.progressPhotos)
     ? milestone.progressPhotos
@@ -63,7 +66,7 @@ const toMilestoneView = (milestone: any, project: any): ClientMilestoneView => {
     description: milestone.description || milestone.acceptanceCriteria || "No description provided.",
     status,
     budgetPercentage,
-    budgetAmount: Math.round((projectBudget * budgetPercentage) / 100),
+    budgetAmount: Math.round(boqTotal || (projectBudget * budgetPercentage) / 100),
     checklist: [
       {
         id: `${milestone.id}-scope`,
@@ -172,13 +175,17 @@ export default function MilestonesScreen() {
       if (!activeEscrow?.escrowAccountId) {
         throw new Error("No escrow account found for this project. Please fund the project first.");
       }
+      const releaseAmount = Number(milestone.budgetAmount || 0);
+      if (!Number.isFinite(releaseAmount) || releaseAmount <= 0) {
+        throw new Error("This milestone has no payable amount. Add BOQ costs or milestone budget before release.");
+      }
 
       return api.post(ENDPOINTS.TRANSACTIONS.CREATE, {
         escrowAccountId: activeEscrow.escrowAccountId,
         milestoneId: milestone.id,
         type: "release",
         method: "bank_transfer",
-        amount: milestone.budgetAmount,
+        amount: String(releaseAmount),
         status: "completed",
         reference: `CLIENT-RELEASE-${Date.now()}`,
       });
@@ -235,21 +242,34 @@ export default function MilestonesScreen() {
   };
 
   // 1. Release Payment (with passcode check)
-  const handleReleasePaymentPress = () => {
+  const handleReleasePaymentPress = async () => {
+    const ready = await hasPasscode();
+    if (!ready) {
+      Alert.alert(
+        "Set payment PIN",
+        "Create a 4-digit payment PIN before releasing milestone funds.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Set PIN",
+            onPress: () => router.push("/(client)/payments/passcode-setup" as never),
+          },
+        ],
+      );
+      return;
+    }
     setModalMode("passcode");
   };
 
   const handleVerifyPasscodeSubmit = async () => {
     if (!selectedMilestone) return;
     setPasscodeError("");
-    
+
+    let verified = false;
     try {
       const res = await verifyPasscode(passcode);
       if (res.success) {
-        await releasePaymentMutation.mutateAsync(selectedMilestone);
-        
-        Alert.alert("Success", "Payment released from escrow successfully! Engineer has been notified.");
-        setSelectedMilestone(null);
+        verified = true;
       } else {
         setPasscode("");
         setPasscodeAttempts(res.remainingAttempts);
@@ -258,8 +278,22 @@ export default function MilestonesScreen() {
           : `Incorrect PIN. ${res.remainingAttempts} attempts remaining.`
         );
       }
-    } catch (e) {
-      setPasscodeError("Error validating security PIN.");
+    } catch (error) {
+      console.warn("Payment PIN verification failed", error);
+      setPasscode("");
+      setPasscodeError("Could not validate this PIN. Set your payment PIN again from Payments.");
+    }
+
+    if (!verified) return;
+
+    try {
+      await releasePaymentMutation.mutateAsync(selectedMilestone);
+      Alert.alert("Success", "Payment released from escrow successfully! Engineer has been notified.");
+      setSelectedMilestone(null);
+    } catch (error) {
+      console.warn("Milestone payment release failed", error);
+      setPasscode("");
+      setPasscodeError(error instanceof Error ? error.message : "Payment release failed. Please try again.");
     }
   };
 
@@ -833,7 +867,7 @@ export default function MilestonesScreen() {
                       maxLength={4}
                       value={passcode}
                       onChangeText={(val) => {
-                        setPasscode(val);
+                        setPasscode(val.replace(/[^0-9]/g, "").slice(0, 4));
                         setPasscodeError("");
                       }}
                     />

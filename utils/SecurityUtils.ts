@@ -11,7 +11,6 @@
 
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PASSCODE_KEY = 'user_financial_passcode';
 const FAILED_ATTEMPTS_KEY = 'failed_passcode_attempts';
@@ -146,16 +145,16 @@ export const hasPasscode = async (): Promise<boolean> => {
  * Get failed attempts count
  */
 const getFailedAttempts = async (): Promise<number> => {
-  const attempts = await AsyncStorage.getItem(FAILED_ATTEMPTS_KEY);
+  const attempts = await SecureStore.getItemAsync(FAILED_ATTEMPTS_KEY);
   return attempts ? parseInt(attempts, 10) : 0;
 };
 
 const storeFailedAttempts = async (attempts: number): Promise<void> => {
-  await AsyncStorage.setItem(FAILED_ATTEMPTS_KEY, attempts.toString());
+  await SecureStore.setItemAsync(FAILED_ATTEMPTS_KEY, attempts.toString());
 };
 
 const resetFailedAttempts = async (): Promise<void> => {
-  await AsyncStorage.removeItem(FAILED_ATTEMPTS_KEY);
+  await SecureStore.deleteItemAsync(FAILED_ATTEMPTS_KEY);
 };
 
 /**
