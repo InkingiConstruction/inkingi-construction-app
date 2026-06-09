@@ -11,11 +11,9 @@ import {
   TextInput,
   Pressable,
   Alert,
-  Platform,
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { COLORS } from '@/constants/colors';
 import { ProjectData } from '..';
 import { createStyles } from '@/utils/createStyles';
@@ -35,6 +33,14 @@ const categories: {
   { id: 'public_works', label: 'Public Works', icon: 'school-outline' },
 ];
 
+const timeframes = [
+  { id: '1-3_months', label: '1-3 months' },
+  { id: '3-6_months', label: '3-6 months' },
+  { id: '6-12_months', label: '6-12 months' },
+  { id: '12_plus_months', label: '12+ months' },
+  { id: 'to_be_scoped', label: 'To be scoped by contractor' },
+];
+
 interface Step1Props {
   data: ProjectData;
   onUpdate: (data: Partial<ProjectData>) => void;
@@ -44,9 +50,8 @@ interface Step1Props {
 export default function Step1_BasicInfo({ data, onUpdate, onNext }: Step1Props) {
   const [basic, setBasic] = useState(data.basic);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showTimeframeDropdown, setShowTimeframeDropdown] = useState(false);
 
   const validateField = (field: string, value: any): string => {
     switch (field) {
@@ -58,14 +63,8 @@ export default function Step1_BasicInfo({ data, onUpdate, onNext }: Step1Props) 
         if (!value.trim()) return 'Description is required';
         if (value.trim().length < 20) return 'Description must be at least 20 characters';
         return '';
-      case 'startDate':
-        if (!value) return 'Start date is required';
-        return '';
-      case 'endDate':
-        if (!value) return 'End date is required';
-        if (basic.startDate && value <= basic.startDate) {
-          return 'End date must be after start date';
-        }
+      case 'expectedTimeframe':
+        if (!value) return 'Expected timeframe is required';
         return '';
       default:
         return '';
@@ -80,25 +79,11 @@ export default function Step1_BasicInfo({ data, onUpdate, onNext }: Step1Props) 
     setErrors(prev => ({ ...prev, [field]: error }));
   };
 
-  const handleStartDateChange = (event: any, selectedDate?: Date) => {
-    setShowStartDatePicker(false);
-    if (selectedDate) {
-      handleChange('startDate', selectedDate);
-    }
-  };
-
-  const handleEndDateChange = (event: any, selectedDate?: Date) => {
-    setShowEndDatePicker(false);
-    if (selectedDate) {
-      handleChange('endDate', selectedDate);
-    }
-  };
-
   const validateAndContinue = () => {
     const newErrors: Record<string, string> = {};
     let isValid = true;
     
-    ['name', 'description', 'startDate', 'endDate'].forEach(field => {
+    ['name', 'description', 'expectedTimeframe'].forEach(field => {
       const error = validateField(field, basic[field as keyof typeof basic]);
       if (error) {
         newErrors[field] = error;
@@ -119,15 +104,6 @@ export default function Step1_BasicInfo({ data, onUpdate, onNext }: Step1Props) 
     } else {
       Alert.alert('Validation Error', 'Please fix the errors before continuing');
     }
-  };
-
-  const formatDate = (date: Date | null) => {
-    if (!date) return '';
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
   };
 
   return (
@@ -267,75 +243,51 @@ export default function Step1_BasicInfo({ data, onUpdate, onNext }: Step1Props) 
         {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
       </View>
 
-      {/* Dates */}
-      <View style={{ flexDirection: 'row', gap: 16, marginBottom: 20 }}>
-        {/* Start Date */}
-        <View style={{ flex: 1 }}>
-          <Text style={styles.label}>
-            Start Date <Text style={{ color: COLORS.ERROR }}>*</Text>
-          </Text>
-          <Pressable
-            onPress={() => setShowStartDatePicker(true)}
-            style={styles.dateButton}
-          >
-            <Ionicons name="calendar-outline" size={20} color={COLORS.PRIMARY} />
-            <Text style={{ flex: 1, color: basic.startDate ? COLORS.TEXT_PRIMARY : COLORS.TEXT_LIGHT }}>
-              {basic.startDate ? formatDate(basic.startDate) : 'Select start date'}
-            </Text>
-            <Ionicons name="chevron-down" size={20} color={COLORS.TEXT_SECONDARY} />
-          </Pressable>
-          {errors.startDate && <Text style={styles.errorText}>{errors.startDate}</Text>}
-        </View>
-
-        {/* End Date */}
-        <View style={{ flex: 1 }}>
-          <Text style={styles.label}>
-            End Date <Text style={{ color: COLORS.ERROR }}>*</Text>
-          </Text>
-          <Pressable
-            onPress={() => setShowEndDatePicker(true)}
-            style={styles.dateButton}
-          >
-            <Ionicons name="calendar-outline" size={20} color={COLORS.PRIMARY} />
-            <Text style={{ flex: 1, color: basic.endDate ? COLORS.TEXT_PRIMARY : COLORS.TEXT_LIGHT }}>
-              {basic.endDate ? formatDate(basic.endDate) : 'Select end date'}
-            </Text>
-            <Ionicons name="chevron-down" size={20} color={COLORS.TEXT_SECONDARY} />
-          </Pressable>
-          {errors.endDate && <Text style={styles.errorText}>{errors.endDate}</Text>}
-        </View>
-      </View>
-
-      {/* Duration Info */}
-      {basic.startDate && basic.endDate && basic.endDate > basic.startDate && (
-        <View style={styles.infoBox}>
+      {/* Expected Timeframe */}
+      <View style={{ marginBottom: 20, zIndex: 8 }}>
+        <Text style={styles.label}>
+          Expected Timeframe <Text style={{ color: COLORS.ERROR }}>*</Text>
+        </Text>
+        <Pressable
+          onPress={() => setShowTimeframeDropdown(!showTimeframeDropdown)}
+          style={styles.dateButton}
+        >
           <Ionicons name="time-outline" size={20} color={COLORS.PRIMARY} />
-          <Text style={styles.infoText}>
-            Project duration: {Math.ceil((basic.endDate.getTime() - basic.startDate.getTime()) / (1000 * 60 * 60 * 24))} days
+          <Text style={{ flex: 1, color: basic.expectedTimeframe ? COLORS.TEXT_PRIMARY : COLORS.TEXT_LIGHT }}>
+            {timeframes.find((item) => item.id === basic.expectedTimeframe)?.label || 'Select expected timeframe'}
           </Text>
-        </View>
-      )}
-
-      {/* Date Pickers */}
-      {showStartDatePicker && (
-        <DateTimePicker
-          value={basic.startDate || new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleStartDateChange}
-          minimumDate={new Date()}
-        />
-      )}
-      
-      {showEndDatePicker && (
-        <DateTimePicker
-          value={basic.endDate || new Date()}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleEndDateChange}
-          minimumDate={basic.startDate || new Date()}
-        />
-      )}
+          <Ionicons name={showTimeframeDropdown ? 'chevron-up' : 'chevron-down'} size={20} color={COLORS.TEXT_SECONDARY} />
+        </Pressable>
+        {showTimeframeDropdown && (
+          <View style={styles.dropdownPanel}>
+            {timeframes.map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() => {
+                  handleChange('expectedTimeframe', item.id);
+                  setShowTimeframeDropdown(false);
+                }}
+                style={({ pressed }) => [
+                  styles.dropdownItem,
+                  {
+                    backgroundColor: basic.expectedTimeframe === item.id
+                      ? COLORS.PRIMARY_LIGHT
+                      : pressed ? COLORS.MUTED : COLORS.SURFACE,
+                  },
+                ]}
+              >
+                <Text style={{
+                  color: basic.expectedTimeframe === item.id ? COLORS.PRIMARY : COLORS.TEXT_PRIMARY,
+                  fontWeight: basic.expectedTimeframe === item.id ? '800' : '500',
+                }}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        {errors.expectedTimeframe && <Text style={styles.errorText}>{errors.expectedTimeframe}</Text>}
+      </View>
 
       {/* Continue Button */}
       <Pressable
@@ -407,6 +359,20 @@ const styles = createStyles({
     fontSize: 14,
     color: COLORS.PRIMARY,
     fontWeight: '500',
+  },
+  dropdownPanel: {
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    borderBottomColor: COLORS.BORDER_LIGHT,
+    borderBottomWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   continueButton: {
     flexDirection: 'row',

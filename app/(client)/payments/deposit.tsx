@@ -19,6 +19,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
+import {
+  authenticateWithBiometrics,
+  hasPasscode,
+} from "@/utils/SecurityUtils";
+import VerifyPasscodeModal from "./verify-passcode";
 
 type FundingMethod = "mtn_momo" | "airtel_money" | "bank_transfer" | "stripe";
 
@@ -82,9 +87,12 @@ export default function DepositScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [method, setMethod] = useState<FundingMethod>("mtn_momo");
   const [autoConfirm, setAutoConfirm] = useState(true);
+  const [passcodeModal, setPasscodeModal] = useState(false);
+  const [pendingAmount, setPendingAmount] = useState<number | undefined>();
 
   const isProjectTransfer = params.target === "project" && Boolean(params.vaultId);
   const selectedMethod = METHODS.find((item) => item.id === method) || METHODS[0];
+  const amountFontSize = amount.length > 12 ? 22 : amount.length > 9 ? 25 : 28;
 
   const fundWallet = useMutation({
     mutationFn: async () => {
@@ -159,6 +167,27 @@ export default function DepositScreen() {
     },
   });
 
+  const startFunding = () => fundWallet.mutate();
+
+  const authorizeFunding = async (amountNumber: number) => {
+    const ready = await hasPasscode();
+    if (!ready) {
+      router.push("/(client)/payments/passcode-setup" as never);
+      return;
+    }
+
+    const biometricOk = await authenticateWithBiometrics(
+      isProjectTransfer ? "Authorize project wallet transfer" : "Authorize wallet funding",
+    );
+    if (biometricOk) {
+      startFunding();
+      return;
+    }
+
+    setPendingAmount(amountNumber);
+    setPasscodeModal(true);
+  };
+
   const submit = () => {
     const amountNumber = Number(amount);
     if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
@@ -169,7 +198,7 @@ export default function DepositScreen() {
       Alert.alert("Phone required", "Enter the mobile money phone number.");
       return;
     }
-    fundWallet.mutate();
+    authorizeFunding(amountNumber);
   };
 
   return (
@@ -194,7 +223,8 @@ export default function DepositScreen() {
               onChangeText={(value) => setAmount(value.replace(/[^0-9]/g, ""))}
               placeholder="0"
               placeholderTextColor={COLORS.TEXT_LIGHT}
-              style={styles.amountInput}
+              numberOfLines={1}
+              style={[styles.amountInput, { fontSize: amountFontSize }]}
               value={amount}
             />
           </View>
@@ -274,6 +304,16 @@ export default function DepositScreen() {
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
+      <VerifyPasscodeModal
+        actionType="deposit"
+        amount={pendingAmount}
+        onClose={() => setPasscodeModal(false)}
+        onSuccess={() => {
+          setPasscodeModal(false);
+          startFunding();
+        }}
+        visible={passcodeModal}
+      />
     </SafeAreaView>
   );
 }
@@ -309,6 +349,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "900",
     paddingVertical: 8,
+    width: "100%",
   },
   input: {
     backgroundColor: COLORS.MUTED,

@@ -11,6 +11,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
+import * as LocalAuthentication from 'expo-local-authentication';
 
 const PASSCODE_KEY = 'user_financial_passcode';
 const FAILED_ATTEMPTS_KEY = 'failed_passcode_attempts';
@@ -29,6 +30,29 @@ let _sessionUnlocked = false;
 export const isPasscodeSessionUnlocked = (): boolean => _sessionUnlocked;
 export const unlockPasscodeSession = (): void => { _sessionUnlocked = true; };
 export const clearPasscodeSession = (): void => { _sessionUnlocked = false; };
+
+export const authenticateWithBiometrics = async (
+  promptMessage = 'Confirm payment security',
+): Promise<boolean> => {
+  const hasHardware = await LocalAuthentication.hasHardwareAsync();
+  if (!hasHardware) return false;
+
+  const enrolled = await LocalAuthentication.isEnrolledAsync();
+  if (!enrolled) return false;
+
+  const result = await LocalAuthentication.authenticateAsync({
+    promptMessage,
+    cancelLabel: 'Use PIN',
+    disableDeviceFallback: false,
+  });
+
+  if (result.success) {
+    unlockPasscodeSession();
+    return true;
+  }
+
+  return false;
+};
 
 export interface PasscodeValidationResult {
   success: boolean;

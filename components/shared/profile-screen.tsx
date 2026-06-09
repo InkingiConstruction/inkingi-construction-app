@@ -2,7 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useMemo } from "react";
 import type { ReactNode } from "react";
-import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { COLORS } from "@/constants/colors";
 import { useAuthStore, UserRole } from "@/store/auth.store";
@@ -62,7 +71,10 @@ type ProfileAction = {
   route: ProfileRoute;
 };
 
-const roleCopy: Record<UserRole, { title: string; body: string; icon: keyof typeof Ionicons.glyphMap }> = {
+const roleCopy: Record<
+  UserRole,
+  { title: string; body: string; icon: keyof typeof Ionicons.glyphMap }
+> = {
   admin: {
     title: "Admin Console",
     body: "Manage platform users, projects, and operational checks.",
@@ -98,41 +110,165 @@ const roleCopy: Record<UserRole, { title: string; body: string; icon: keyof type
 const roleActions: Record<UserRole, ProfileAction[]> = {
   admin: [
     { icon: "home-outline", label: "Dashboard", route: "/(client)" },
-    { icon: "settings-outline", label: "Settings", route: "/(client)/settings" },
+    {
+      icon: "settings-outline",
+      label: "Settings",
+      route: "/(client)/settings",
+    },
   ],
   client: [
-    { icon: "business-outline", label: "My projects", value: "Manage", route: "/(client)/projects" },
-    { icon: "flag-outline", label: "Milestones", value: "Review", route: "/(client)/milestones" },
-    { icon: "card-outline", label: "Payments", value: "Escrow", route: "/(client)/payments" },
-    { icon: "alert-circle-outline", label: "Disputes", value: "Cases", route: "/(client)/disputes" },
-    { icon: "chatbubbles-outline", label: "Messages", value: "Project chat", route: "/(client)/messages" },
+    {
+      icon: "business-outline",
+      label: "My projects",
+      value: "Manage",
+      route: "/(client)/projects",
+    },
+    {
+      icon: "flag-outline",
+      label: "Milestones",
+      value: "Review",
+      route: "/(client)/milestones",
+    },
+    {
+      icon: "card-outline",
+      label: "Payments",
+      value: "Escrow",
+      route: "/(client)/payments",
+    },
+    {
+      icon: "alert-circle-outline",
+      label: "Disputes",
+      value: "Cases",
+      route: "/(client)/disputes",
+    },
+    {
+      icon: "chatbubbles-outline",
+      label: "Messages",
+      value: "Project chat",
+      route: "/(client)/messages",
+    },
   ],
   engineer: [
-    { icon: "mail-unread-outline", label: "Assignments", value: "Invites", route: "/(engineer)/assignments" },
-    { icon: "business-outline", label: "Projects", value: "Workspaces", route: "/(engineer)/projects" },
-    { icon: "flag-outline", label: "Milestones", value: "Plan", route: "/(engineer)/milestones" },
-    { icon: "list-outline", label: "BOQ", value: "Items", route: "/(engineer)/boq" },
-    { icon: "receipt-outline", label: "RFQs", value: "Suppliers", route: "/(engineer)/rfqs" },
-    { icon: "camera-outline", label: "Progress", value: "Uploads", route: "/(engineer)/progress" },
+    {
+      icon: "mail-unread-outline",
+      label: "Assignments",
+      value: "Invites",
+      route: "/(engineer)/assignments",
+    },
+    {
+      icon: "business-outline",
+      label: "Projects",
+      value: "Workspaces",
+      route: "/(engineer)/projects",
+    },
+    {
+      icon: "flag-outline",
+      label: "Milestones",
+      value: "Plan",
+      route: "/(engineer)/milestones",
+    },
+    {
+      icon: "list-outline",
+      label: "BOQ",
+      value: "Items",
+      route: "/(engineer)/boq",
+    },
+    {
+      icon: "receipt-outline",
+      label: "RFQs",
+      value: "Suppliers",
+      route: "/(engineer)/rfqs",
+    },
+    {
+      icon: "camera-outline",
+      label: "Progress",
+      value: "Uploads",
+      route: "/(engineer)/progress",
+    },
   ],
   supervisor: [
-    { icon: "business-outline", label: "Projects", value: "Assigned", route: "/(supervisor)/projects" },
-    { icon: "camera-outline", label: "Progress review", value: "Approve", route: "/(supervisor)/progress-review" },
-    { icon: "clipboard-outline", label: "Inspections", value: "Site checks", route: "/(supervisor)/inspections" },
-    { icon: "chatbubbles-outline", label: "Messages", value: "Project chat", route: "/(supervisor)/messages" },
+    {
+      icon: "business-outline",
+      label: "Projects",
+      value: "Assigned",
+      route: "/(supervisor)/projects",
+    },
+    {
+      icon: "camera-outline",
+      label: "Progress review",
+      value: "Approve",
+      route: "/(supervisor)/progress-review",
+    },
+    {
+      icon: "clipboard-outline",
+      label: "Inspections",
+      value: "Site checks",
+      route: "/(supervisor)/inspections",
+    },
+    {
+      icon: "chatbubbles-outline",
+      label: "Messages",
+      value: "Project chat",
+      route: "/(supervisor)/messages",
+    },
   ],
   supplier: [
-    { icon: "receipt-outline", label: "RFQs", value: "Open", route: "/(supplier)/rfqs" },
-    { icon: "document-text-outline", label: "Quotes", value: "Submitted", route: "/(supplier)/quotes" },
-    { icon: "cart-outline", label: "Orders", value: "Purchase", route: "/(supplier)/purchase-orders" },
-    { icon: "cube-outline", label: "Deliveries", value: "Track", route: "/(supplier)/deliveries" },
-    { icon: "chatbubbles-outline", label: "Messages", value: "Project chat", route: "/(supplier)/messages" },
+    {
+      icon: "receipt-outline",
+      label: "RFQs",
+      value: "Open",
+      route: "/(supplier)/rfqs",
+    },
+    {
+      icon: "document-text-outline",
+      label: "Quotes",
+      value: "Submitted",
+      route: "/(supplier)/quotes",
+    },
+    {
+      icon: "cart-outline",
+      label: "Orders",
+      value: "Purchase",
+      route: "/(supplier)/purchase-orders",
+    },
+    {
+      icon: "cube-outline",
+      label: "Deliveries",
+      value: "Track",
+      route: "/(supplier)/deliveries",
+    },
+    {
+      icon: "chatbubbles-outline",
+      label: "Messages",
+      value: "Project chat",
+      route: "/(supplier)/messages",
+    },
   ],
   site_agent: [
-    { icon: "clipboard-outline", label: "Daily reports", value: "Ground truth", route: "/(site-agent)/daily-report" },
-    { icon: "cube-outline", label: "Site stock", value: "Inventory", route: "/(site-agent)/inventory" },
-    { icon: "keypad-outline", label: "Receiving", value: "PIN verify", route: "/(site-agent)/receiving" },
-    { icon: "chatbubbles-outline", label: "Messages", value: "Project chat", route: "/(site-agent)/messages" },
+    {
+      icon: "clipboard-outline",
+      label: "Daily reports",
+      value: "Ground truth",
+      route: "/(site-agent)/daily-report",
+    },
+    {
+      icon: "cube-outline",
+      label: "Site stock",
+      value: "Inventory",
+      route: "/(site-agent)/inventory",
+    },
+    {
+      icon: "keypad-outline",
+      label: "Receiving",
+      value: "PIN verify",
+      route: "/(site-agent)/receiving",
+    },
+    {
+      icon: "chatbubbles-outline",
+      label: "Messages",
+      value: "Project chat",
+      route: "/(site-agent)/messages",
+    },
   ],
 };
 
@@ -217,21 +353,47 @@ export function ProfileScreen() {
     <SafeAreaView style={styles.safe}>
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchUser} tintColor={COLORS.PRIMARY} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={fetchUser}
+            tintColor={COLORS.PRIMARY}
+          />
+        }
       >
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={12} style={styles.iconButton}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.iconButton}
+          >
             <Ionicons name="arrow-back" size={20} color={COLORS.TEXT_PRIMARY} />
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerEyebrow}>{role.toUpperCase()} ACCOUNT</Text>
+            <Text style={styles.headerEyebrow}>
+              {role.toUpperCase()} ACCOUNT
+            </Text>
             <Text style={styles.headerTitle}>Profile</Text>
           </View>
-          <Pressable onPress={() => go(roleNotifications[role])} style={styles.iconButton}>
-            <Ionicons name="notifications-outline" size={20} color={COLORS.TEXT_PRIMARY} />
+          <Pressable
+            onPress={() => go(roleNotifications[role])}
+            style={styles.iconButton}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={20}
+              color={COLORS.TEXT_PRIMARY}
+            />
           </Pressable>
-          <Pressable onPress={() => go(roleSettings[role])} style={styles.iconButton}>
-            <Ionicons name="settings-outline" size={20} color={COLORS.TEXT_PRIMARY} />
+          <Pressable
+            onPress={() => go(roleSettings[role])}
+            style={styles.iconButton}
+          >
+            <Ionicons
+              name="settings-outline"
+              size={20}
+              color={COLORS.TEXT_PRIMARY}
+            />
           </Pressable>
         </View>
 
@@ -249,18 +411,30 @@ export function ProfileScreen() {
               <Text style={styles.email}>{user?.email || "No email"}</Text>
               <View style={styles.pillRow}>
                 <StatusPill
-                  icon={user?.emailVerified ? "checkmark-circle" : "time-outline"}
-                  label={user?.emailVerified ? "Email verified" : "Email pending"}
+                  icon={
+                    user?.emailVerified ? "checkmark-circle" : "time-outline"
+                  }
+                  label={
+                    user?.emailVerified ? "Email verified" : "Email pending"
+                  }
                   tone={user?.emailVerified ? "success" : "warning"}
                 />
-                <StatusPill icon="id-card-outline" label={role.toUpperCase()} tone="neutral" />
+                <StatusPill
+                  icon="id-card-outline"
+                  label={role.toUpperCase()}
+                  tone="neutral"
+                />
               </View>
             </View>
           </View>
 
           <View style={styles.rolePanel}>
             <View style={styles.roleIcon}>
-              <Ionicons name={roleInfo.icon} size={22} color={COLORS.PRIMARY_DARK} />
+              <Ionicons
+                name={roleInfo.icon}
+                size={22}
+                color={COLORS.PRIMARY_DARK}
+              />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.roleTitle}>{roleInfo.title}</Text>
@@ -273,10 +447,14 @@ export function ProfileScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>Account readiness</Text>
             <Text style={styles.cardBody}>
-              {completion >= 90 ? "Your profile is ready for production workflows." : "Complete your profile details to keep workflows smooth."}
+              {completion >= 90
+                ? "Your profile is ready for production workflows."
+                : "Complete your profile details to keep workflows smooth."}
             </Text>
             {user?.kycRejectionReason ? (
-              <Text style={styles.rejectionText}>KYC note: {user.kycRejectionReason}</Text>
+              <Text style={styles.rejectionText}>
+                KYC note: {user.kycRejectionReason}
+              </Text>
             ) : null}
           </View>
           <View style={styles.scoreCircle}>
@@ -285,8 +463,16 @@ export function ProfileScreen() {
         </View>
 
         <View style={styles.quickActions}>
-          <QuickButton icon="create-outline" label="Edit profile" onPress={() => go(roleProfileEdit[role])} />
-          <QuickButton icon="home-outline" label="Dashboard" onPress={() => go(roleHome[role])} />
+          <QuickButton
+            icon="create-outline"
+            label="Edit profile"
+            onPress={() => go(roleProfileEdit[role])}
+          />
+          <QuickButton
+            icon="home-outline"
+            label="Dashboard"
+            onPress={() => go(roleHome[role])}
+          />
         </View>
 
         <Group title="Workspace">
@@ -302,30 +488,74 @@ export function ProfileScreen() {
         </Group>
 
         <Group title="Account Details">
-          <MenuRow icon="person-outline" label="Full name" value={user?.name || "Not set"} onPress={() => go(roleProfileEdit[role])} />
-          <MenuRow icon="at-outline" label="Username" value={user?.username || user?.displayUsername || "Not set"} onPress={() => go(roleProfileEdit[role])} />
-          <MenuRow icon="call-outline" label="Phone number" value={phone} onPress={() => go(roleProfileEdit[role])} />
-          <MenuRow icon="mail-outline" label="Email" value={user?.email || "No email"} />
+          <MenuRow
+            icon="person-outline"
+            label="Full name"
+            value={user?.name || "Not set"}
+            onPress={() => go(roleProfileEdit[role])}
+          />
+          <MenuRow
+            icon="at-outline"
+            label="Username"
+            value={user?.username || user?.displayUsername || "Not set"}
+            onPress={() => go(roleProfileEdit[role])}
+          />
+          <MenuRow
+            icon="call-outline"
+            label="Phone number"
+            value={phone}
+            onPress={() => go(roleProfileEdit[role])}
+          />
+          <MenuRow
+            icon="mail-outline"
+            label="Email"
+            value={user?.email || "No email"}
+          />
         </Group>
 
         <Group title="Verification">
           <MenuRow
-            icon={user?.emailVerified ? "checkmark-circle-outline" : "time-outline"}
+            icon={
+              user?.emailVerified ? "checkmark-circle-outline" : "time-outline"
+            }
             label="Email status"
             value={user?.emailVerified ? "Verified" : "Pending"}
           />
           <MenuRow
-            icon={user?.phoneNumberVerified ? "checkmark-circle-outline" : "time-outline"}
+            icon={
+              user?.phoneNumberVerified
+                ? "checkmark-circle-outline"
+                : "time-outline"
+            }
             label="Phone status"
             value={user?.phoneNumberVerified ? "Verified" : "Pending"}
           />
-          <MenuRow icon="document-text-outline" label="KYC status" value={kycText} />
-          <MenuRow icon="document-attach-outline" label="Documents" value={`${user?.registrationDocuments?.length || 0}`} onPress={() => go(roleProfileEdit[role])} />
+          <MenuRow
+            icon="document-text-outline"
+            label="KYC status"
+            value={kycText}
+          />
+          <MenuRow
+            icon="document-attach-outline"
+            label="Documents"
+            value={`${user?.registrationDocuments?.length || 0}`}
+            onPress={() => go(roleProfileEdit[role])}
+          />
         </Group>
 
         <Group title="Preferences">
-          <MenuRow icon="notifications-outline" label="Notifications" value="Manage" onPress={() => go(roleNotifications[role])} />
-          <MenuRow icon="settings-outline" label="Settings" value="Open" onPress={() => go(roleSettings[role])} />
+          <MenuRow
+            icon="notifications-outline"
+            label="Notifications"
+            value="Manage"
+            onPress={() => go(roleNotifications[role])}
+          />
+          <MenuRow
+            icon="settings-outline"
+            label="Settings"
+            value="Open"
+            onPress={() => go(roleSettings[role])}
+          />
           <MenuRow icon="language-outline" label="Language" value="English" />
         </Group>
 
@@ -350,7 +580,12 @@ function StatusPill({
   label: string;
   tone: "success" | "warning" | "neutral";
 }) {
-  const color = tone === "success" ? COLORS.SUCCESS : tone === "warning" ? COLORS.GOLD : COLORS.PRIMARY_LIGHT;
+  const color =
+    tone === "success"
+      ? COLORS.SUCCESS
+      : tone === "warning"
+        ? COLORS.GOLD
+        : COLORS.PRIMARY_LIGHT;
   return (
     <View style={styles.statusPill}>
       <Ionicons name={icon} size={13} color={color} />
@@ -402,8 +637,14 @@ function MenuRow({
         <Ionicons name={icon} size={16} color={COLORS.PRIMARY_DARK} />
       </View>
       <Text style={styles.rowLabel}>{label}</Text>
-      {value ? <Text numberOfLines={1} style={styles.rowValue}>{value}</Text> : null}
-      {onPress ? <Ionicons name="chevron-forward" size={16} color={COLORS.TEXT_LIGHT} /> : null}
+      {value ? (
+        <Text numberOfLines={1} style={styles.rowValue}>
+          {value}
+        </Text>
+      ) : null}
+      {onPress ? (
+        <Ionicons name="chevron-forward" size={16} color={COLORS.TEXT_LIGHT} />
+      ) : null}
     </>
   );
 

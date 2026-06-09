@@ -7,6 +7,7 @@ import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
 import { EngineerBoqItem, EngineerMilestone, EngineerProgressPhoto, EngineerProject, EngineerRfq } from "@/components/engineer/engineer-types";
 import { money } from "@/components/engineer/engineer-utils";
+import { ProjectFeed } from "@/components/shared/project-feed";
 import { COLORS } from "@/constants/colors";
 
 export default function EngineerProjectDetails() {
@@ -144,6 +145,8 @@ export default function EngineerProjectDetails() {
                 body="Open milestones and resend the package after updating the requested details."
               />
             ) : null}
+
+            <ProjectFeed projectId={project.id} />
 
             <View style={{ flexDirection: "row", gap: 10 }}>
               <Action label="Open chat" icon="chatbubbles-outline" route="/(engineer)/messages" />

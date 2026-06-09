@@ -27,6 +27,7 @@ export const ENDPOINTS = {
     LIST: "/projects",
     CREATE: "/projects",
     DETAIL: (id: string) => `/projects/${id}`,
+    FEED: (id: string) => `/projects/${id}/feed`,
     STATUS: (id: string) => `/projects/${id}/status`,
   },
   PROJECT_MEMBERS: {
@@ -40,6 +41,7 @@ export const ENDPOINTS = {
     ENGINEERS: "/users/engineers",
     SUPERVISORS: "/users/supervisors",
     SUPPLIERS: "/users/suppliers",
+    SITE_AGENTS: "/users/site-agents",
   },
   KYC: {
     DOCUMENTS: "/kyc/documents",

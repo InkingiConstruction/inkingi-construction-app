@@ -5,6 +5,8 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
+  Linking,
   Modal,
   Pressable,
   RefreshControl,
@@ -22,6 +24,17 @@ import { SupervisorMilestone } from "@/components/supervisor/supervisor-types";
 
 type SupervisorMilestoneDetail = SupervisorMilestone & {
   durationDays?: number | null;
+  acceptanceCriteria?: string | null;
+  description?: string | null;
+  project?: SupervisorMilestone["project"] & {
+    architecturalPlans?: Array<{
+      id?: string;
+      cloudinaryUrl?: string | null;
+      url?: string | null;
+      name?: string | null;
+      originalName?: string | null;
+    }>;
+  };
   boqItems?: {
     id: string;
     category: string;
@@ -39,7 +52,20 @@ type SupervisorMilestoneDetail = SupervisorMilestone & {
     rating?: number | null;
     createdAt?: string;
   }[];
+  progressPhotos?: {
+    id: string;
+    caption?: string | null;
+    cloudinaryUrl?: string | null;
+    url?: string | null;
+    isVideo?: boolean | null;
+  }[];
 };
+
+const parseCriteria = (value?: string | null) =>
+  (value || "")
+    .split(/\n+/)
+    .map((item) => item.replace(/^\d+\.\s*/, "").trim())
+    .filter(Boolean);
 
 export default function SupervisorInspections() {
   const params = useLocalSearchParams<{ projectId?: string; milestoneId?: string }>();
@@ -50,6 +76,7 @@ export default function SupervisorInspections() {
   const [rating, setRating] = useState("5");
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [criteriaChecks, setCriteriaChecks] = useState<Record<string, "pass" | "fix">>({});
 
   const milestonesQuery = useQuery({
     queryKey: ["supervisor-milestones", params.projectId],
@@ -81,6 +108,7 @@ export default function SupervisorInspections() {
           structureQuality: decision === "approved",
           siteSafety: decision === "approved",
           documentationReviewed: true,
+          acceptanceCriteria: criteriaChecks,
         },
       }),
     onSuccess: () => {
@@ -108,7 +136,12 @@ export default function SupervisorInspections() {
 
   const openMilestone = (id: string) => {
     setSelectedMilestoneId(id);
+    setCriteriaChecks({});
     setSheetOpen(true);
+  };
+
+  const toggleCriterion = (criterion: string, value: "pass" | "fix") => {
+    setCriteriaChecks((current) => ({ ...current, [criterion]: value }));
   };
 
   const refresh = async () => {
@@ -183,11 +216,13 @@ export default function SupervisorInspections() {
         rating={rating}
         reviewLoading={inspectMutation.isPending}
         visible={sheetOpen}
+        criteriaChecks={criteriaChecks}
         onApprove={() => submit("approved")}
         onClose={() => setSheetOpen(false)}
         onNotesChange={setNotes}
         onRatingChange={setRating}
         onRevision={() => submit("revision_required")}
+        onToggleCriterion={toggleCriterion}
       />
     </SafeAreaView>
   );
@@ -206,6 +241,8 @@ function MilestoneReviewSheet({
   onRatingChange,
   onApprove,
   onRevision,
+  criteriaChecks,
+  onToggleCriterion,
 }: {
   visible: boolean;
   loading: boolean;
@@ -219,7 +256,11 @@ function MilestoneReviewSheet({
   onRatingChange: (value: string) => void;
   onApprove: () => void;
   onRevision: () => void;
+  criteriaChecks: Record<string, "pass" | "fix">;
+  onToggleCriterion: (criterion: string, value: "pass" | "fix") => void;
 }) {
+  const criteria = parseCriteria(milestone?.acceptanceCriteria || milestone?.description);
+
   return (
     <Modal animationType="slide" transparent visible={visible} onRequestClose={onClose}>
       <View style={styles.sheetBackdrop}>
@@ -245,6 +286,9 @@ function MilestoneReviewSheet({
               onNotesChange={onNotesChange}
               onRatingChange={onRatingChange}
               onRevision={onRevision}
+              criteria={criteria}
+              criteriaChecks={criteriaChecks}
+              onToggleCriterion={onToggleCriterion}
             />
           </ScrollView>
         </View>
@@ -280,6 +324,16 @@ function SelectedMilestoneDetails({
   const boqItems = milestone.boqItems || [];
   const boqTotal = boqItems.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
   const latestInspection = milestone.inspections?.[0];
+  const criteria = parseCriteria(milestone.acceptanceCriteria || milestone.description);
+  const progressMedia = milestone.progressPhotos || [];
+  const plans = milestone.project?.architecturalPlans || [];
+
+  const openPlan = async () => {
+    const planUrl = plans[0]?.cloudinaryUrl || plans[0]?.url;
+    if (planUrl) {
+      await Linking.openURL(planUrl);
+    }
+  };
 
   return (
     <View style={styles.detailCard}>
@@ -304,7 +358,64 @@ function SelectedMilestoneDetails({
 
       <View style={styles.sectionBlock}>
         <Text style={styles.sectionTitle}>Acceptance criteria</Text>
-        <Text style={styles.detailBody}>{milestone.acceptanceCriteria || milestone.description || "No criteria provided."}</Text>
+        {criteria.length === 0 ? (
+          <Text style={styles.detailBody}>No criteria provided.</Text>
+        ) : (
+          <View style={{ gap: 8, marginTop: 8 }}>
+            {criteria.map((item, index) => (
+              <View key={`${item}-${index}`} style={styles.criteriaLine}>
+                <View style={styles.criteriaIndex}>
+                  <Text style={styles.criteriaIndexText}>{index + 1}</Text>
+                </View>
+                <Text style={styles.criteriaText}>{item}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <View style={styles.sectionBlock}>
+        <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between", gap: 10 }}>
+          <Text style={styles.sectionTitle}>Original plans</Text>
+          {plans.length > 0 ? (
+            <Pressable onPress={openPlan} style={styles.linkButton}>
+              <Ionicons name="document-text-outline" size={15} color={COLORS.PRIMARY} />
+              <Text style={styles.linkButtonText}>View plans</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        <Text style={styles.detailBody}>
+          {plans.length > 0
+            ? `${plans.length} plan document${plans.length === 1 ? "" : "s"} attached to this project.`
+            : "No original plans are attached to this project."}
+        </Text>
+      </View>
+
+      <View style={styles.sectionBlock}>
+        <Text style={styles.sectionTitle}>Progress media</Text>
+        {progressMedia.length === 0 ? (
+          <Text style={styles.detailBody}>No progress media has been submitted for this milestone yet.</Text>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, marginTop: 10 }}>
+            {progressMedia.map((media) => {
+              const mediaUrl = media.cloudinaryUrl || media.url;
+              return (
+                <View key={media.id} style={styles.mediaCard}>
+                  {mediaUrl && !media.isVideo ? (
+                    <Image source={{ uri: mediaUrl }} style={styles.mediaImage} />
+                  ) : (
+                    <View style={styles.videoThumb}>
+                      <Ionicons name="play-circle" size={34} color={COLORS.TEXT_WHITE} />
+                    </View>
+                  )}
+                  <Text numberOfLines={2} style={styles.mediaCaption}>
+                    {media.caption || (media.isVideo ? "Progress video" : "Progress photo")}
+                  </Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       <View style={styles.sectionBlock}>
@@ -350,10 +461,13 @@ type InspectionFormProps = {
   rating: string;
   loading: boolean;
   error: string;
+  criteria: string[];
+  criteriaChecks: Record<string, "pass" | "fix">;
   onNotesChange: (value: string) => void;
   onRatingChange: (value: string) => void;
   onApprove: () => void;
   onRevision: () => void;
+  onToggleCriterion: (criterion: string, value: "pass" | "fix") => void;
 };
 
 function InspectionForm({
@@ -361,10 +475,13 @@ function InspectionForm({
   rating,
   loading,
   error,
+  criteria,
+  criteriaChecks,
   onNotesChange,
   onRatingChange,
   onApprove,
   onRevision,
+  onToggleCriterion,
 }: InspectionFormProps) {
   return (
     <View
@@ -380,6 +497,30 @@ function InspectionForm({
       <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 17, fontWeight: "900" }}>
         Inspection decision
       </Text>
+      {criteria.length > 0 ? (
+        <View style={styles.checklistBox}>
+          <Text style={styles.checklistTitle}>Criteria checklist</Text>
+          {criteria.map((criterion, index) => (
+            <View key={`${criterion}-${index}`} style={styles.checklistRow}>
+              <Text style={styles.checklistText}>{criterion}</Text>
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                <ChecklistToggle
+                  active={criteriaChecks[criterion] === "pass"}
+                  color={COLORS.SUCCESS}
+                  label="Pass"
+                  onPress={() => onToggleCriterion(criterion, "pass")}
+                />
+                <ChecklistToggle
+                  active={criteriaChecks[criterion] === "fix"}
+                  color={COLORS.WARNING}
+                  label="Fix"
+                  onPress={() => onToggleCriterion(criterion, "fix")}
+                />
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
       <TextInput
         multiline
         onChangeText={onNotesChange}
@@ -419,6 +560,36 @@ function InspectionForm({
         <DecisionButton disabled={loading} label="Revision" color={COLORS.WARNING} onPress={onRevision} />
       </View>
     </View>
+  );
+}
+
+function ChecklistToggle({
+  active,
+  color,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  color: string;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        backgroundColor: active ? color : COLORS.SURFACE,
+        borderColor: active ? color : COLORS.BORDER_LIGHT,
+        borderRadius: 999,
+        borderWidth: 1,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+      }}
+    >
+      <Text style={{ color: active ? COLORS.TEXT_WHITE : COLORS.TEXT_SECONDARY, fontSize: 11, fontWeight: "900" }}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -541,6 +712,100 @@ const styles = {
     color: COLORS.TEXT_PRIMARY,
     fontSize: 13,
     fontWeight: "900" as const,
+  },
+  criteriaLine: {
+    alignItems: "flex-start" as const,
+    backgroundColor: COLORS.MUTED,
+    borderRadius: 8,
+    flexDirection: "row" as const,
+    gap: 8,
+    padding: 10,
+  },
+  criteriaIndex: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderRadius: 999,
+    height: 22,
+    justifyContent: "center" as const,
+    width: 22,
+  },
+  criteriaIndexText: {
+    color: COLORS.PRIMARY,
+    fontSize: 11,
+    fontWeight: "900" as const,
+  },
+  criteriaText: {
+    color: COLORS.TEXT_PRIMARY,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  linkButton: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderRadius: 999,
+    flexDirection: "row" as const,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  linkButtonText: {
+    color: COLORS.PRIMARY,
+    fontSize: 11,
+    fontWeight: "900" as const,
+  },
+  mediaCard: {
+    backgroundColor: COLORS.MUTED,
+    borderRadius: 10,
+    overflow: "hidden" as const,
+    width: 132,
+  },
+  mediaImage: {
+    backgroundColor: COLORS.BORDER_LIGHT,
+    height: 92,
+    width: "100%" as const,
+  },
+  videoThumb: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.INK,
+    height: 92,
+    justifyContent: "center" as const,
+    width: "100%" as const,
+  },
+  mediaCaption: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 11,
+    lineHeight: 15,
+    padding: 8,
+  },
+  checklistBox: {
+    backgroundColor: COLORS.MUTED,
+    borderRadius: 10,
+    gap: 8,
+    marginTop: 12,
+    padding: 10,
+  },
+  checklistTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 12,
+    fontWeight: "900" as const,
+  },
+  checklistRow: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row" as const,
+    gap: 8,
+    justifyContent: "space-between" as const,
+    padding: 9,
+  },
+  checklistText: {
+    color: COLORS.TEXT_PRIMARY,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
   },
   boqRow: {
     alignItems: "flex-start" as const,

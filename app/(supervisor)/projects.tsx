@@ -10,6 +10,7 @@ import { ENDPOINTS } from "@/api/endpoints";
 import { COLORS } from "@/constants/colors";
 import { SupervisorTopBar } from "@/components/supervisor/supervisor-top-bar";
 import { SupervisorAssignment, SupervisorProject } from "@/components/supervisor/supervisor-types";
+import { ProjectFeed } from "@/components/shared/project-feed";
 
 export default function SupervisorProjects() {
   const queryClient = useQueryClient();
@@ -280,6 +281,9 @@ function ProjectDetailSheet({
             </DetailBlock>
             <DetailSection title="Description" body={project.description || "No description provided."} />
             <DetailSection title="Team" body={members.length ? members.map((member) => `${member.role}: ${member.user?.name || member.user?.email || member.status} (${member.status})`).join("\n") : "No team members listed."} />
+            <View style={{ marginTop: 14 }}>
+              <ProjectFeed projectId={project.id} />
+            </View>
             <View style={styles.detailBlock}>
               <Text style={styles.sectionTitle}>Milestones ({milestones.length})</Text>
               {milestones.length === 0 ? (

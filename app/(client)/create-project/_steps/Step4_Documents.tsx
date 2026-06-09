@@ -40,6 +40,7 @@ interface Document {
 export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step4Props) {
   const [sitePhotos, setSitePhotos] = useState<Document[]>(data.documents.sitePhotos);
   const [architecturalPlans, setArchitecturalPlans] = useState<Document[]>(data.documents.architecturalPlans);
+  const [contractorProvidesPlans, setContractorProvidesPlans] = useState(Boolean(data.documents.contractorProvidesPlans));
   const [uploading, setUploading] = useState(false);
 
   const pickSitePhotos = async () => {
@@ -131,11 +132,6 @@ export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step
       return;
     }
     
-    if (architecturalPlans.length === 0) {
-      Alert.alert('Missing Plans', 'Please upload at least one architectural plan');
-      return;
-    }
-    
     const allUploaded = [...sitePhotos, ...architecturalPlans].every(doc => doc.uploaded);
     if (!allUploaded) {
       Alert.alert('Uploads Pending', 'Please wait for all documents to finish uploading');
@@ -146,6 +142,7 @@ export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step
       documents: {
         sitePhotos,
         architecturalPlans,
+        contractorProvidesPlans,
       },
     });
     
@@ -157,6 +154,7 @@ export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step
       documents: {
         sitePhotos,
         architecturalPlans,
+        contractorProvidesPlans,
       },
     });
     onPrev();
@@ -170,7 +168,7 @@ export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step
           Upload Documents
         </Text>
         <Text style={{ fontSize: 14, color: COLORS.TEXT_SECONDARY, marginTop: 4 }}>
-          Provide site photos and architectural plans
+          Provide site photos now. Design plans can be uploaded now or prepared by the Main Contractor.
         </Text>
       </View>
 
@@ -228,10 +226,10 @@ export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step
       {/* Architectural Plans Section */}
       <View style={{ marginBottom: 32 }}>
         <Text style={styles.sectionTitle}>
-          Architectural Plans <Text style={{ color: COLORS.ERROR }}>*</Text>
+          Architectural / Design Plans <Text style={{ color: COLORS.TEXT_LIGHT }}>(optional)</Text>
         </Text>
         <Text style={styles.sectionSubtitle}>
-          Upload floor plans, elevations, or site plans
+          Upload floor plans, elevations, or site plans if you already have them.
         </Text>
         
         <Pressable
@@ -262,6 +260,19 @@ export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step
             </Pressable>
           </View>
         ))}
+
+        <Pressable
+          onPress={() => setContractorProvidesPlans((prev) => !prev)}
+          style={styles.planOption}
+        >
+          <View style={[styles.checkbox, contractorProvidesPlans && styles.checkboxActive]}>
+            {contractorProvidesPlans ? <Ionicons name="checkmark" size={16} color="#FFF" /> : null}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.planOptionTitle}>I need the Main Contractor to provide design plans</Text>
+            <Text style={styles.planOptionBody}>Choose this for design-build projects where drawings are not ready yet.</Text>
+          </View>
+        </Pressable>
       </View>
 
       {/* Navigation Buttons */}
@@ -275,9 +286,9 @@ export default function Step4_Documents({ data, onUpdate, onNext, onPrev }: Step
           onPress={validateAndContinue}
           style={[
             styles.continueButton,
-            (sitePhotos.length < 3 || architecturalPlans.length === 0) && styles.disabledButton,
+            sitePhotos.length < 3 && styles.disabledButton,
           ]}
-          disabled={sitePhotos.length < 3 || architecturalPlans.length === 0}
+          disabled={sitePhotos.length < 3}
         >
           <Text style={styles.continueButtonText}>Review & Submit</Text>
           <Ionicons name="arrow-forward" size={20} color="#FFF" />
@@ -373,6 +384,40 @@ const styles = createStyles({
     borderRadius: 12,
     padding: 12,
     marginTop: 12,
+  },
+  planOption: {
+    alignItems: 'center',
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 14,
+    padding: 12,
+  },
+  checkbox: {
+    alignItems: 'center',
+    borderColor: COLORS.BORDER,
+    borderRadius: 6,
+    borderWidth: 1,
+    height: 24,
+    justifyContent: 'center',
+    width: 24,
+  },
+  checkboxActive: {
+    backgroundColor: COLORS.PRIMARY,
+    borderColor: COLORS.PRIMARY,
+  },
+  planOptionTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  planOptionBody: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
   },
   planInfo: {
     flex: 1,

@@ -85,7 +85,7 @@ export default function Login() {
                 </Text>
                 <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13 }}>
                   If you are new /{" "}
-                  <Link href="/(auth)/register" asChild>
+                  <Link href={{ pathname: "/(auth)/register", params: { reset: "1" } }} asChild>
                     <Text style={{ color: COLORS.INK, fontWeight: "900" }}>
                       Create New
                     </Text>

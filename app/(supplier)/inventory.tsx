@@ -9,9 +9,26 @@ import { SupplierTopBar } from "@/components/supplier/supplier-top-bar";
 import { SupplierInventoryItem } from "@/components/supplier/supplier-types";
 import { COLORS } from "@/constants/colors";
 
+const MATERIAL_CATEGORIES = [
+  "Cement",
+  "Rebar",
+  "Aggregates",
+  "Sand",
+  "Timber",
+  "Bricks & Blocks",
+  "Roofing",
+  "Plumbing",
+  "Electrical",
+  "Paint & Finishes",
+  "Hardware",
+  "Equipment Rental",
+  "Labor Service",
+];
+
 export default function SupplierInventory() {
   const queryClient = useQueryClient();
-  const [category, setCategory] = useState("Materials");
+  const [category, setCategory] = useState(MATERIAL_CATEGORIES[0]);
+  const [categoryOpen, setCategoryOpen] = useState(false);
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
@@ -66,8 +83,56 @@ export default function SupplierInventory() {
 
         <View style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 10, borderWidth: 1, gap: 10, padding: 16 }}>
           <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 17, fontWeight: "900" }}>New inventory item</Text>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <Input placeholder="Category" value={category} onChangeText={setCategory} />
+          <View style={{ flexDirection: "row", gap: 10, zIndex: 20 }}>
+            <View style={{ flex: 1 }}>
+              <Pressable
+                onPress={() => setCategoryOpen((prev) => !prev)}
+                style={{
+                  alignItems: "center",
+                  backgroundColor: COLORS.MUTED,
+                  borderColor: COLORS.BORDER_LIGHT,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                }}
+              >
+                <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1 }}>{category}</Text>
+                <Ionicons name={categoryOpen ? "chevron-up" : "chevron-down"} size={18} color={COLORS.TEXT_SECONDARY} />
+              </Pressable>
+              {categoryOpen ? (
+                <View style={{
+                  backgroundColor: COLORS.SURFACE,
+                  borderColor: COLORS.BORDER_LIGHT,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  left: 0,
+                  maxHeight: 220,
+                  overflow: "hidden",
+                  position: "absolute",
+                  right: 0,
+                  top: 50,
+                  zIndex: 30,
+                }}>
+                  <ScrollView nestedScrollEnabled>
+                    {MATERIAL_CATEGORIES.map((item) => (
+                      <Pressable
+                        key={item}
+                        onPress={() => {
+                          setCategory(item);
+                          setCategoryOpen(false);
+                        }}
+                        style={{ borderBottomColor: COLORS.BORDER_LIGHT, borderBottomWidth: 1, paddingHorizontal: 12, paddingVertical: 12 }}
+                      >
+                        <Text style={{ color: item === category ? COLORS.PRIMARY : COLORS.TEXT_PRIMARY, fontWeight: item === category ? "900" : "500" }}>{item}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
+            </View>
             <Input placeholder="Unit" value={unit} onChangeText={setUnit} />
           </View>
           <Input placeholder="Material / service name" value={name} onChangeText={setName} />

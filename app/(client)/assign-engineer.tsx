@@ -633,14 +633,29 @@ export default function AssignEngineerScreen() {
                       </View>
                     </View>
 
-                    <View>
-                      <Text style={styles.sectionLabel}>Contact Registry</Text>
-                      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 13, fontWeight: "bold" }}>
-                        Email: <Text style={{ fontWeight: "normal", color: COLORS.TEXT_SECONDARY }}>{viewingEngineer.email}</Text>
+                    <View style={{ gap: 8 }}>
+                      <Text style={styles.sectionLabel}>Secure Communication</Text>
+                      <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 13, lineHeight: 19 }}>
+                        Contact details stay private until work is agreed inside Inkingi. Use in-app chat to discuss proposal terms securely.
                       </Text>
-                      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 13, fontWeight: "bold", marginTop: 4 }}>
-                        Phone: <Text style={{ fontWeight: "normal", color: COLORS.TEXT_SECONDARY }}>{viewingEngineer.phone}</Text>
-                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          setViewingEngineer(null);
+                          router.push("/(client)/messages" as never);
+                        }}
+                        style={{
+                          alignItems: "center",
+                          backgroundColor: COLORS.PRIMARY,
+                          borderRadius: 10,
+                          flexDirection: "row",
+                          gap: 8,
+                          justifyContent: "center",
+                          paddingVertical: 12,
+                        }}
+                      >
+                        <Ionicons name="chatbubble-ellipses-outline" size={18} color={COLORS.TEXT_WHITE} />
+                        <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 13, fontWeight: "900" }}>Message Contractor</Text>
+                      </Pressable>
                     </View>
                   </View>
                 )}

@@ -134,14 +134,20 @@ export default function ClientProjects() {
                       >
                         <Ionicons name="business-outline" size={23} color={COLORS.PRIMARY_DARK} />
                       </View>
-                      <View style={{ flex: 1 }}>
+                      <Pressable
+                        onPress={() => router.push({ pathname: "/(client)/project/[id]", params: { id: project.id } } as never)}
+                        style={{ flex: 1 }}
+                      >
                         <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900" }}>
                           {project.name}
                         </Text>
                         <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 4 }}>
                           {project.address || "No address set"}
                         </Text>
-                      </View>
+                        <Text style={{ color: COLORS.PRIMARY, fontSize: 11, fontWeight: "900", marginTop: 6 }}>
+                          Open details and feed
+                        </Text>
+                      </Pressable>
                       <View style={{ alignItems: "flex-end", gap: 8 }}>
                         <StatusBadge value={project.status} />
                         <View style={{ flexDirection: "row", gap: 6 }}>
@@ -186,6 +192,18 @@ export default function ClientProjects() {
                         value={supervisor?.user?.name || "Not assigned"}
                         state={supervisor ? "Accepted" : pending.find((item) => item.role === "supervisor") ? "Pending" : "Missing"}
                       />
+                      <TeamLine
+                        icon="location-outline"
+                        label="Site Agent"
+                        value={project.projectMembers?.find((item) => item.role === "site_agent" && item.status === "accepted")?.user?.name || "Not assigned"}
+                        state={
+                          project.projectMembers?.find((item) => item.role === "site_agent" && item.status === "accepted")
+                            ? "Accepted"
+                            : pending.find((item) => item.role === "site_agent")
+                              ? "Pending"
+                              : "Missing"
+                        }
+                      />
                     </View>
                   </View>
 
@@ -212,6 +230,16 @@ export default function ClientProjects() {
                       onPress={() =>
                         router.push({
                           pathname: "/(client)/assign-supervisor",
+                          params: { projectId: project.id },
+                        })
+                      }
+                    />
+                    <Action
+                      icon="location-outline"
+                      label="Agent"
+                      onPress={() =>
+                        router.push({
+                          pathname: "/(client)/assign-site-agent",
                           params: { projectId: project.id },
                         })
                       }

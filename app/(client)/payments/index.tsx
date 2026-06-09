@@ -8,6 +8,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -18,7 +19,7 @@ import { COLORS } from "@/constants/colors";
 import { formatRWF } from "@/utils/projectFunds";
 import {
   hasPasscode,
-  isPasscodeSessionUnlocked,
+  authenticateWithBiometrics,
 } from "@/utils/SecurityUtils";
 import VerifyPasscodeModal from "./verify-passcode";
 
@@ -58,6 +59,7 @@ export default function ClientPayments() {
   const [refreshing, setRefreshing] = useState(false);
   const [balanceVisible, setBalanceVisible] = useState(false);
   const [passcodeModal, setPasscodeModal] = useState(false);
+  const [secureAction, setSecureAction] = useState<null | (() => void)>(null);
 
   const walletQuery = useQuery({
     queryKey: ["client-wallet"],
@@ -112,31 +114,49 @@ export default function ClientPayments() {
     setRefreshing(false);
   };
 
+  const runSecureAction = async (action: () => void, promptMessage: string) => {
+    const ready = await hasPasscode();
+    if (!ready) {
+      router.push("/(client)/payments/passcode-setup" as never);
+      return;
+    }
+    const biometricOk = await authenticateWithBiometrics(promptMessage);
+    if (biometricOk) {
+      action();
+      return;
+    }
+    setSecureAction(() => action);
+    setPasscodeModal(true);
+  };
+
   const unlockBalance = () => {
     if (balanceVisible) {
       setBalanceVisible(false);
       return;
     }
-    if (isPasscodeSessionUnlocked()) {
-      setBalanceVisible(true);
-    } else {
-      setPasscodeModal(true);
-    }
+    runSecureAction(() => setBalanceVisible(true), "View wallet balance");
   };
 
   const fundGeneralWallet = () => {
-    router.push({ pathname: "/(client)/payments/deposit", params: { target: "general" } } as never);
+    runSecureAction(
+      () => router.push({ pathname: "/(client)/payments/deposit", params: { target: "general" } } as never),
+      "Authorize wallet funding",
+    );
   };
 
   const fundProjectWallet = (vault: Vault) => {
-    router.push({
-      pathname: "/(client)/payments/deposit",
-      params: {
-        target: "project",
-        vaultId: vault.escrowAccountId,
-        projectName: vault.projectName,
-      },
-    } as never);
+    runSecureAction(
+      () =>
+        router.push({
+          pathname: "/(client)/payments/deposit",
+          params: {
+            target: "project",
+            vaultId: vault.escrowAccountId,
+            projectName: vault.projectName,
+          },
+        } as never),
+      "Authorize project wallet transfer",
+    );
   };
 
   const deleteVault = useMutation({
@@ -164,7 +184,11 @@ export default function ClientPayments() {
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => deleteVault.mutate(vault.escrowAccountId),
+          onPress: () =>
+            runSecureAction(
+              () => deleteVault.mutate(vault.escrowAccountId),
+              "Authorize project wallet deletion",
+            ),
         },
       ],
     );
@@ -201,13 +225,18 @@ export default function ClientPayments() {
           </Text>
         </View>
 
-        <View style={{ backgroundColor: COLORS.INK, borderRadius: 8, padding: 20 }}>
-          <View style={{ alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" }}>
-            <View>
+        <View style={styles.walletCard}>
+          <View style={{ alignItems: "flex-start", flexDirection: "row", gap: 12, justifyContent: "space-between" }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, fontWeight: "900" }}>
                 GENERAL WALLET
               </Text>
-              <Text style={{ color: "#FFF", fontSize: 32, fontWeight: "900", marginTop: 5 }}>
+              <Text
+                adjustsFontSizeToFit
+                minimumFontScale={0.72}
+                numberOfLines={1}
+                style={styles.walletAmount}
+              >
                 {balanceVisible ? formatRWF(walletBalance) : "••••••"}
               </Text>
               <Text style={{ color: "#CBD5E1", fontSize: 12, marginTop: 4 }}>
@@ -231,7 +260,7 @@ export default function ClientPayments() {
               <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: "800" }}>
                 PROJECT VAULTS
               </Text>
-              <Text style={{ color: "#FFF", fontSize: 18, fontWeight: "900", marginTop: 2 }}>
+              <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.smallWalletAmount}>
                 {balanceVisible ? formatRWF(totalProjectVaults) : "••••••"}
               </Text>
             </View>
@@ -281,7 +310,7 @@ export default function ClientPayments() {
                 return (
                   <View
                     key={vault.escrowAccountId}
-                    style={{ backgroundColor: COLORS.SURFACE, borderColor: COLORS.BORDER_LIGHT, borderRadius: 8, borderWidth: 1, padding: 16 }}
+                    style={styles.projectWalletCard}
                   >
                     <View style={{ alignItems: "center", flexDirection: "row", gap: 12 }}>
                       <View style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 8, height: 42, justifyContent: "center", width: 42 }}>
@@ -301,7 +330,12 @@ export default function ClientPayments() {
                       <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>
                         PROJECT WALLET BALANCE
                       </Text>
-                      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 24, fontWeight: "900", marginTop: 3 }}>
+                      <Text
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.72}
+                        numberOfLines={1}
+                        style={styles.projectWalletAmount}
+                      >
                         {balanceVisible ? formatRWF(balance) : "••••••"}
                       </Text>
                     </View>
@@ -351,7 +385,12 @@ export default function ClientPayments() {
                         {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString() : ""}
                       </Text>
                     </View>
-                    <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>
+                    <Text
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                      numberOfLines={1}
+                      style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900", maxWidth: 120, textAlign: "right" }}
+                    >
                       {balanceVisible ? formatRWF(Math.abs(Number(tx.amount || 0))) : "••••"}
                     </Text>
                   </View>
@@ -364,9 +403,13 @@ export default function ClientPayments() {
 
       <VerifyPasscodeModal
         actionType="unlock_balance"
-        onClose={() => setPasscodeModal(false)}
+        onClose={() => {
+          setPasscodeModal(false);
+          setSecureAction(null);
+        }}
         onSuccess={() => {
-          setBalanceVisible(true);
+          secureAction?.();
+          setSecureAction(null);
           setPasscodeModal(false);
         }}
         visible={passcodeModal}
@@ -374,3 +417,36 @@ export default function ClientPayments() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  walletCard: {
+    backgroundColor: COLORS.INK,
+    borderRadius: 8,
+    padding: 20,
+  },
+  walletAmount: {
+    color: "#FFF",
+    fontSize: 32,
+    fontWeight: "900",
+    marginTop: 5,
+  },
+  smallWalletAmount: {
+    color: "#FFF",
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  projectWalletCard: {
+    backgroundColor: COLORS.SURFACE,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 16,
+  },
+  projectWalletAmount: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 24,
+    fontWeight: "900",
+    marginTop: 3,
+  },
+});

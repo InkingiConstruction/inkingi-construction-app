@@ -33,15 +33,6 @@ export default function Step5_Review({ data, onPrev }: Step5Props) {
   const [agreed, setAgreed] = useState(false);
   const queryClient = useQueryClient();
 
-  const formatDate = (date: Date | null) => {
-    if (!date) return 'Not set';
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
-
   const formatMoney = (amount: number) => {
     return new Intl.NumberFormat('en-RW', {
       style: 'currency',
@@ -49,6 +40,17 @@ export default function Step5_Review({ data, onPrev }: Step5Props) {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const formatTimeframe = (value?: string) => {
+    const labels: Record<string, string> = {
+      '1-3_months': '1-3 months',
+      '3-6_months': '3-6 months',
+      '6-12_months': '6-12 months',
+      '12_plus_months': '12+ months',
+      to_be_scoped: 'To be scoped by contractor',
+    };
+    return value ? labels[value] || value : 'To be scoped by contractor';
   };
 
   const getCategoryLabel = (category: string) => {
@@ -80,12 +82,12 @@ export default function Step5_Review({ data, onPrev }: Step5Props) {
       formData.append('name', data.basic.name);
       formData.append('description', data.basic.description);
       formData.append('category', data.basic.category);
-      formData.append('startDate', data.basic.startDate?.toISOString() || '');
-      formData.append('endDate', data.basic.endDate?.toISOString() || '');
+      formData.append('expectedTimeframe', data.basic.expectedTimeframe || '');
       
       // Budget
       formData.append('budget', data.budget.totalAmount.toString());
       formData.append('currency', data.budget.currency);
+      formData.append('needsExpertEstimate', data.budget.needsExpertEstimate ? 'true' : 'false');
       
       // Location
       formData.append('gpsBoundary', JSON.stringify(data.location.coordinates));
@@ -111,6 +113,7 @@ export default function Step5_Review({ data, onPrev }: Step5Props) {
           type: plan.mimeType || (plan.fileName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
         } as any);
       });
+      formData.append('contractorProvidesPlans', data.documents.contractorProvidesPlans ? 'true' : 'false');
 
       if (data.location.landCertificate) {
         formData.append('architecturalPlans', {
@@ -188,10 +191,8 @@ export default function Step5_Review({ data, onPrev }: Step5Props) {
           </View>
           
           <View style={styles.infoRow}>
-            <Text style={styles.label}>Timeline:</Text>
-            <Text style={styles.value}>
-              {formatDate(data.basic.startDate)} - {formatDate(data.basic.endDate)}
-            </Text>
+            <Text style={styles.label}>Expected Timeframe:</Text>
+            <Text style={styles.value}>{formatTimeframe(data.basic.expectedTimeframe)}</Text>
           </View>
         </View>
 
@@ -204,7 +205,9 @@ export default function Step5_Review({ data, onPrev }: Step5Props) {
           <View style={styles.infoRow}>
             <Text style={styles.label}>Total Budget:</Text>
             <Text style={[styles.value, styles.budgetValue]}>
-              {formatMoney(data.budget.totalAmount)}
+              {data.budget.needsExpertEstimate || !data.budget.totalAmount
+                ? 'Expert estimate requested'
+                : formatMoney(data.budget.totalAmount)}
             </Text>
           </View>
         </View>
@@ -253,7 +256,13 @@ export default function Step5_Review({ data, onPrev }: Step5Props) {
           
           <View style={styles.infoRow}>
             <Text style={styles.label}>Architectural Plans:</Text>
-            <Text style={styles.value}>{data.documents.architecturalPlans.length} uploaded</Text>
+            <Text style={styles.value}>
+              {data.documents.architecturalPlans.length > 0
+                ? `${data.documents.architecturalPlans.length} uploaded`
+                : data.documents.contractorProvidesPlans
+                  ? 'Main Contractor to provide'
+                  : 'Not provided yet'}
+            </Text>
           </View>
         </View>
 

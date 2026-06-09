@@ -54,6 +54,12 @@
         }
       ],
       "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Inkingi to use Face ID or fingerprint to confirm payment releases."
+        }
+      ],
       "expo-video",
       [
         "expo-notifications",

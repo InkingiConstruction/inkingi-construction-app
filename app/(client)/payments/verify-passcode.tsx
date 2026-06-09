@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@/constants/colors';
 import {
+  authenticateWithBiometrics,
   verifyPasscode,
   PasscodeValidationResult,
   unlockPasscodeSession,
@@ -106,6 +107,25 @@ export default function VerifyPasscodeModal({
       case 'withdraw': return 'Withdraw Funds';
       case 'release': return 'Release Payment';
       case 'unlock_balance': return 'View Balance';
+    }
+  };
+
+  const handleBiometric = async () => {
+    if (loading || isLocked) return;
+    setLoading(true);
+    setError('');
+    try {
+      const success = await authenticateWithBiometrics(`Confirm ${getActionLabel().toLowerCase()}`);
+      if (success) {
+        onSuccess();
+        onClose();
+      } else {
+        setError('Biometric verification was not completed. Use your PIN.');
+      }
+    } catch {
+      setError('Biometric verification failed. Use your PIN.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -240,9 +260,31 @@ export default function VerifyPasscodeModal({
               </Text>
             ) : null}
             <Text style={{ fontSize: 13, color: COLORS.TEXT_SECONDARY, marginTop: 8, textAlign: 'center', lineHeight: 18 }}>
-              Enter your 4-digit payment PIN to{'\n'}authorize this action
+              Use biometrics or enter your 4-digit PIN to{'\n'}authorize this action
             </Text>
           </View>
+
+          <Pressable
+            onPress={handleBiometric}
+            disabled={loading || isLocked}
+            style={{
+              alignItems: 'center',
+              alignSelf: 'center',
+              backgroundColor: COLORS.PRIMARY_LIGHT,
+              borderRadius: 999,
+              flexDirection: 'row',
+              gap: 8,
+              marginBottom: 18,
+              opacity: loading || isLocked ? 0.55 : 1,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+            }}
+          >
+            <Ionicons name="finger-print-outline" size={20} color={COLORS.PRIMARY} />
+            <Text style={{ color: COLORS.PRIMARY, fontSize: 13, fontWeight: '900' }}>
+              Use biometrics
+            </Text>
+          </Pressable>
 
           {/* Dots */}
           <View style={{ marginBottom: 10 }}>

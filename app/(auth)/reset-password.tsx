@@ -176,6 +176,7 @@ export default function ResetPassword() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [otpStep, setOtpStep] = useState(true);
   const [countdown, setCountdown] = useState(0);
+  const [otpExpiresIn, setOtpExpiresIn] = useState(5 * 60);
 
   // Countdown timer for resend button
   useEffect(() => {
@@ -185,6 +186,18 @@ export default function ResetPassword() {
     }
     return () => clearTimeout(timer);
   }, [countdown]);
+
+  useEffect(() => {
+    if (!otpStep || otpExpiresIn <= 0) return;
+    const timer = setTimeout(() => setOtpExpiresIn((value) => Math.max(value - 1, 0)), 1000);
+    return () => clearTimeout(timer);
+  }, [otpExpiresIn, otpStep]);
+
+  const formatTimer = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+  };
 
   const validatePassword = (password: string): string | null => {
     if (!password) return "Password is required";
@@ -197,6 +210,10 @@ export default function ResetPassword() {
   const handleVerifyOTP = async () => {
     if (!otp || otp.length !== 6) {
       setError("Please enter the 6-digit verification code");
+      return;
+    }
+    if (otpExpiresIn <= 0) {
+      setError("This code has expired. Please resend a new OTP.");
       return;
     }
     
@@ -277,6 +294,7 @@ export default function ResetPassword() {
       
       setMessage("A new verification code has been sent to your email");
       setCountdown(60); // 60 seconds cooldown
+      setOtpExpiresIn(5 * 60);
       setOtp("");
       setOtpStep(true);
     } catch (err) {
@@ -409,6 +427,23 @@ export default function ResetPassword() {
                     onComplete={handleVerifyOTP}
                     loading={loading}
                   />
+
+                  <View style={{
+                    alignItems: "center",
+                    backgroundColor: otpExpiresIn > 0 ? COLORS.PRIMARY_LIGHT : "#FEE2E2",
+                    borderRadius: 999,
+                    marginTop: 4,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}>
+                    <Text style={{
+                      color: otpExpiresIn > 0 ? COLORS.PRIMARY_DARK : COLORS.ERROR,
+                      fontSize: 12,
+                      fontWeight: "800",
+                    }}>
+                      {otpExpiresIn > 0 ? `Code expires in ${formatTimer(otpExpiresIn)}` : "Code expired. Resend OTP."}
+                    </Text>
+                  </View>
 
                   {/* Manual Verify Button (if auto-submit doesn't work) */}
                   {otp.length === 6 && (

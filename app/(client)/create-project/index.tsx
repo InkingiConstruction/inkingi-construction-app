@@ -4,8 +4,8 @@
  * Manages state across 5 steps with progress indicator
  * 
  * Steps:
- * 1. Basic Info - Project name, description, dates
- * 2. Budget - Budget amount, currency, visual chart
+ * 1. Basic Info - Project name, description, expected timeframe
+ * 2. Budget - Optional budget amount and currency
  * 3. Location - GPS boundary drawing on map
  * 4. Documents - Site photos, architectural plans
  * 5. Review - Summary & submit
@@ -40,6 +40,7 @@ export interface ProjectData {
     category: string;
     startDate: Date | null;
     endDate: Date | null;
+    expectedTimeframe?: string;
   };
   
   // Step 2: Budget
@@ -47,6 +48,7 @@ export interface ProjectData {
     totalAmount: number;
     currency: 'RWF' | 'USD';
     exchangeRate?: number;
+    needsExpertEstimate?: boolean;
   };
   
   // Step 3: Location
@@ -64,6 +66,7 @@ export interface ProjectData {
   documents: {
     sitePhotos: Array<{ uri: string; fileName: string; uploaded: boolean; url?: string; mimeType?: string }>;
     architecturalPlans: Array<{ uri: string; fileName: string; uploaded: boolean; url?: string; mimeType?: string }>;
+    contractorProvidesPlans?: boolean;
   };
   
   // Metadata
@@ -78,10 +81,12 @@ const initialProjectData: ProjectData = {
     category: 'residential',
     startDate: null,
     endDate: null,
+    expectedTimeframe: '',
   },
   budget: {
     totalAmount: 0,
     currency: 'RWF',
+    needsExpertEstimate: false,
   },
   location: {
     coordinates: [],
@@ -90,6 +95,7 @@ const initialProjectData: ProjectData = {
   documents: {
     sitePhotos: [],
     architecturalPlans: [],
+    contractorProvidesPlans: false,
   },
   currentStep: 0,
   isSubmitting: false,

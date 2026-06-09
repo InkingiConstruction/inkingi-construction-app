@@ -137,12 +137,14 @@ export default function RegisterFlow() {
     email?: string;
     fullName?: string;
     phoneNumber?: string;
+    reset?: string;
   }>();
   const paramRole = asParam(params.role);
   const paramStep = asParam(params.step);
   const paramEmail = asParam(params.email);
   const paramFullName = asParam(params.fullName);
   const paramPhoneNumber = asParam(params.phoneNumber);
+  const shouldResetDraft = asParam(params.reset) === "1";
   const shouldResumeEmailVerification =
     paramStep === RESUME_VERIFY_STEP && Boolean(paramEmail);
   const shouldShowApprovalPending =
@@ -177,6 +179,15 @@ export default function RegisterFlow() {
   // Load persisted progress
   useEffect(() => {
     (async () => {
+      if (shouldResetDraft) {
+        await safeRemoveItem(STORAGE_KEY);
+        setRole("client");
+        setRoleSelected(false);
+        setData(DEFAULT_DATA("client"));
+        setIsReady(true);
+        return;
+      }
+
       if (shouldResumeEmailVerification || shouldShowApprovalPending || shouldContinueSignup) {
         const resumed = createEmailVerificationResume({
           role: paramRole,
@@ -222,6 +233,7 @@ export default function RegisterFlow() {
     paramPhoneNumber,
     paramRole,
     persist,
+    shouldResetDraft,
     shouldContinueSignup,
     shouldResumeEmailVerification,
     shouldShowApprovalPending,

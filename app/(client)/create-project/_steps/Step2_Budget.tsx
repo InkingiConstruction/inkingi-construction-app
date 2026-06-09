@@ -25,6 +25,7 @@ export default function Step2_Budget({ data, onUpdate, onNext, onPrev }: Step2Pr
   const [budget, setBudget] = useState({
     totalAmount: data.budget.totalAmount,
     currency: data.budget.currency,
+    needsExpertEstimate: data.budget.needsExpertEstimate || false,
   });
   const [error, setError] = useState("");
 
@@ -36,11 +37,9 @@ export default function Step2_Budget({ data, onUpdate, onNext, onPrev }: Step2Pr
       maximumFractionDigits: 0,
     }).format(amount || 0);
 
-  const minimumBudget = budget.currency === "RWF" ? 100000 : 70;
-
   const handleBudgetChange = (text: string) => {
     const amount = parseInt(text.replace(/[^0-9]/g, ""), 10) || 0;
-    setBudget((prev) => ({ ...prev, totalAmount: amount }));
+    setBudget((prev) => ({ ...prev, totalAmount: amount, needsExpertEstimate: amount > 0 ? false : prev.needsExpertEstimate }));
     setError("");
   };
 
@@ -56,16 +55,6 @@ export default function Step2_Budget({ data, onUpdate, onNext, onPrev }: Step2Pr
   };
 
   const validateAndContinue = () => {
-    if (!budget.totalAmount || budget.totalAmount < minimumBudget) {
-      const message =
-        budget.currency === "RWF"
-          ? "Minimum budget is 100,000 RWF"
-          : "Minimum budget is 70 USD";
-      setError(message);
-      Alert.alert("Invalid Budget", message);
-      return;
-    }
-
     persistBudget();
     onNext();
   };
@@ -91,13 +80,13 @@ export default function Step2_Budget({ data, onUpdate, onNext, onPrev }: Step2Pr
           </View>
           <Text style={styles.title}>Set Project Budget</Text>
           <Text style={styles.subtitle}>
-            Enter the budget amount you want to assign to this project.
+            Add a budget if you already know it, or let the Main Contractor prepare an expert estimate after scoping.
           </Text>
         </View>
 
         <View style={styles.amountCard}>
           <Text style={styles.label}>
-            Available project budget <Text style={{ color: COLORS.ERROR }}>*</Text>
+            Available project budget <Text style={{ color: COLORS.TEXT_LIGHT }}>(optional)</Text>
           </Text>
 
           <View style={styles.amountRow}>
@@ -118,9 +107,29 @@ export default function Step2_Budget({ data, onUpdate, onNext, onPrev }: Step2Pr
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+          <Pressable
+            onPress={() => {
+              setBudget((prev) => ({
+                ...prev,
+                totalAmount: prev.needsExpertEstimate ? prev.totalAmount : 0,
+                needsExpertEstimate: !prev.needsExpertEstimate,
+              }));
+              setError("");
+            }}
+            style={styles.estimateRow}
+          >
+            <View style={[styles.checkbox, budget.needsExpertEstimate && styles.checkboxActive]}>
+              {budget.needsExpertEstimate ? <Ionicons name="checkmark" size={16} color="#FFF" /> : null}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.estimateTitle}>I need an expert estimate</Text>
+              <Text style={styles.estimateBody}>The Main Contractor will prepare the final budget from the BOQ.</Text>
+            </View>
+          </Pressable>
+
           <View style={styles.limitRow}>
-            <Text style={styles.limitLabel}>Client funding cap</Text>
-            <Text style={styles.limitValue}>{formatMoney(budget.totalAmount)}</Text>
+            <Text style={styles.limitLabel}>Budget status</Text>
+            <Text style={styles.limitValue}>{budget.needsExpertEstimate || !budget.totalAmount ? "To be estimated" : formatMoney(budget.totalAmount)}</Text>
           </View>
         </View>
 
@@ -131,9 +140,8 @@ export default function Step2_Budget({ data, onUpdate, onNext, onPrev }: Step2Pr
           </Pressable>
 
           <Pressable
-            disabled={!budget.totalAmount}
             onPress={validateAndContinue}
-            style={[styles.continueButton, !budget.totalAmount && styles.disabledButton]}
+            style={styles.continueButton}
           >
             <Text style={styles.continueButtonText}>Continue to Location</Text>
             <Ionicons name="arrow-forward" size={20} color="#FFF" />
@@ -241,6 +249,40 @@ const styles = createStyles({
     color: COLORS.TEXT_PRIMARY,
     fontSize: 15,
     fontWeight: "900",
+  },
+  estimateRow: {
+    alignItems: "center",
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 14,
+    padding: 12,
+  },
+  checkbox: {
+    alignItems: "center",
+    borderColor: COLORS.BORDER,
+    borderRadius: 6,
+    borderWidth: 1,
+    height: 24,
+    justifyContent: "center",
+    width: 24,
+  },
+  checkboxActive: {
+    backgroundColor: COLORS.PRIMARY,
+    borderColor: COLORS.PRIMARY,
+  },
+  estimateTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  estimateBody: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
   },
   navigationButtons: {
     flexDirection: "row",

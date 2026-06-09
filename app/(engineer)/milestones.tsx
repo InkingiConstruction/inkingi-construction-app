@@ -19,13 +19,19 @@ const statusColor = (status: string) => {
   return COLORS.TEXT_LIGHT;
 };
 
+const parseCriteria = (value?: string | null) =>
+  (value || "")
+    .split(/\n+/)
+    .map((item) => item.replace(/^\d+\.\s*/, "").trim())
+    .filter(Boolean);
+
 export default function EngineerMilestones() {
   const queryClient = useQueryClient();
   const params = useLocalSearchParams<{ projectId?: string }>();
   const [selectedProjectId, setSelectedProjectId] = useState(params.projectId || "");
   const [name, setName] = useState("");
   const [durationDays, setDurationDays] = useState("");
-  const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
+  const [criteriaItems, setCriteriaItems] = useState<string[]>([""]);
   const [editingMilestoneId, setEditingMilestoneId] = useState("");
   const [statusActionId, setStatusActionId] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -52,6 +58,11 @@ export default function EngineerMilestones() {
 
   const milestones = milestonesQuery.data || [];
   const completedCount = milestones.filter((milestone) => milestone.status === "paid").length;
+  const criteriaText = criteriaItems
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item, index) => `${index + 1}. ${item}`)
+    .join("\n");
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -64,9 +75,9 @@ export default function EngineerMilestones() {
         projectId: activeProjectId,
         name: name.trim(),
         durationDays: durationDays.trim() ? Number(durationDays) : undefined,
-        acceptanceCriteria: acceptanceCriteria.trim() || undefined,
+        acceptanceCriteria: criteriaText || undefined,
         order: milestones.length + 1,
-        status: milestones.length === 0 ? "active" : "pending",
+        status: "pending",
       });
     },
     onSuccess: async () => {
@@ -81,7 +92,7 @@ export default function EngineerMilestones() {
     setEditingMilestoneId("");
     setName("");
     setDurationDays("");
-    setAcceptanceCriteria("");
+    setCriteriaItems([""]);
   };
 
   const updateDetailsMutation = useMutation({
@@ -94,7 +105,7 @@ export default function EngineerMilestones() {
       return api.put(ENDPOINTS.MILESTONES.UPDATE(editingMilestoneId), {
         name: name.trim(),
         durationDays: durationDays.trim() ? Number(durationDays) : undefined,
-        acceptanceCriteria: acceptanceCriteria.trim() || undefined,
+        acceptanceCriteria: criteriaText || undefined,
       });
     },
     onSuccess: async () => {
@@ -123,7 +134,21 @@ export default function EngineerMilestones() {
     setEditingMilestoneId(milestone.id);
     setName(milestone.name);
     setDurationDays(milestone.durationDays ? String(milestone.durationDays) : "");
-    setAcceptanceCriteria(milestone.acceptanceCriteria || milestone.description || "");
+    const criteria = parseCriteria(milestone.acceptanceCriteria || milestone.description);
+    setCriteriaItems(criteria.length ? criteria : [""]);
+  };
+
+  const updateCriterion = (index: number, value: string) => {
+    setCriteriaItems((items) => items.map((item, itemIndex) => (itemIndex === index ? value : item)));
+  };
+
+  const addCriterion = () => setCriteriaItems((items) => [...items, ""]);
+
+  const removeCriterion = (index: number) => {
+    setCriteriaItems((items) => {
+      const next = items.filter((_, itemIndex) => itemIndex !== index);
+      return next.length ? next : [""];
+    });
   };
   const refresh = async () => {
     setRefreshing(true);
@@ -195,14 +220,28 @@ export default function EngineerMilestones() {
                   onChangeText={setDurationDays}
                   style={styles.input}
                 />
-                <TextInput
-                  placeholder="Acceptance criteria"
-                  placeholderTextColor={COLORS.TEXT_LIGHT}
-                  value={acceptanceCriteria}
-                  onChangeText={setAcceptanceCriteria}
-                  multiline
-                  style={[styles.input, { minHeight: 86, textAlignVertical: "top" }]}
-                />
+                <View style={{ gap: 8 }}>
+                  <Text style={styles.inputLabel}>Acceptance criteria</Text>
+                  {criteriaItems.map((criterion, index) => (
+                    <View key={`criterion-${index}`} style={styles.criteriaRow}>
+                      <Text style={styles.criteriaNumber}>{index + 1}</Text>
+                      <TextInput
+                        placeholder="Quality or delivery condition"
+                        placeholderTextColor={COLORS.TEXT_LIGHT}
+                        value={criterion}
+                        onChangeText={(value) => updateCriterion(index, value)}
+                        style={[styles.input, { flex: 1 }]}
+                      />
+                      <Pressable onPress={() => removeCriterion(index)} style={styles.iconButton}>
+                        <Ionicons name="close" size={18} color={COLORS.TEXT_SECONDARY} />
+                      </Pressable>
+                    </View>
+                  ))}
+                  <Pressable onPress={addCriterion} style={styles.addCriteriaButton}>
+                    <Ionicons name="add" size={17} color={COLORS.PRIMARY} />
+                    <Text style={styles.addCriteriaText}>Add criterion</Text>
+                  </Pressable>
+                </View>
                 <Pressable
                   disabled={createMutation.isPending || updateDetailsMutation.isPending}
                   onPress={() => (editingMilestoneId ? updateDetailsMutation.mutate() : createMutation.mutate())}
@@ -238,7 +277,6 @@ export default function EngineerMilestones() {
                   milestone={milestone}
                   loading={statusActionId === milestone.id && updateStatusMutation.isPending}
                   onEdit={() => startEdit(milestone)}
-                  onSetActive={() => updateStatusMutation.mutate({ id: milestone.id, status: "active" })}
                   onSubmitReview={() => updateStatusMutation.mutate({ id: milestone.id, status: "pending_supervisor" })}
                 />
               ))}
@@ -318,13 +356,11 @@ function MilestoneCard({
   milestone,
   loading,
   onEdit,
-  onSetActive,
   onSubmitReview,
 }: {
   milestone: EngineerMilestone;
   loading: boolean;
   onEdit: () => void;
-  onSetActive: () => void;
   onSubmitReview: () => void;
 }) {
   const boqTotal = (milestone.boqItems || []).reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
@@ -367,12 +403,7 @@ function MilestoneCard({
             <Text style={styles.secondaryButtonText}>Edit</Text>
           </Pressable>
         ) : null}
-        {milestone.status === "pending" ? (
-          <Pressable disabled={loading} onPress={onSetActive} style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>Mark active</Text>
-          </Pressable>
-        ) : null}
-        {["active", "revision_required"].includes(milestone.status) ? (
+        {["pending", "active", "revision_required"].includes(milestone.status) ? (
           <Pressable disabled={loading} onPress={onSubmitReview} style={styles.primaryButton}>
             <Ionicons name="send-outline" size={17} color={COLORS.TEXT_WHITE} />
             <Text style={styles.primaryButtonText}>{loading ? "Sending..." : "Send for review"}</Text>
@@ -476,6 +507,45 @@ const styles = {
     color: COLORS.TEXT_PRIMARY,
     paddingHorizontal: 12,
     paddingVertical: 12,
+  },
+  inputLabel: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 12,
+    fontWeight: "900" as const,
+  },
+  criteriaRow: {
+    alignItems: "center" as const,
+    flexDirection: "row" as const,
+    gap: 8,
+  },
+  criteriaNumber: {
+    color: COLORS.PRIMARY,
+    fontSize: 12,
+    fontWeight: "900" as const,
+    textAlign: "center" as const,
+    width: 20,
+  },
+  iconButton: {
+    alignItems: "center" as const,
+    backgroundColor: COLORS.MUTED,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: "center" as const,
+    width: 42,
+  },
+  addCriteriaButton: {
+    alignItems: "center" as const,
+    alignSelf: "flex-start" as const,
+    flexDirection: "row" as const,
+    gap: 6,
+    paddingVertical: 6,
+  },
+  addCriteriaText: {
+    color: COLORS.PRIMARY,
+    fontSize: 12,
+    fontWeight: "900" as const,
   },
   primaryButton: {
     alignItems: "center" as const,
