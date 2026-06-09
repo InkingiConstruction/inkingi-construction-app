@@ -65,7 +65,7 @@ export default function EngineerAssignments() {
         ) : (
           <>
             <SectionTitle title="Pending invitations" count={pending.length} />
-            {pending.length === 0 ? <Empty text="No pending engineer invitations." /> : null}
+            {pending.length === 0 ? <Empty text="No pending Main Contractor invitations." /> : null}
             {pending.map((assignment) => (
               <AssignmentCard
                 key={assignment.id}
@@ -129,12 +129,12 @@ function AssignmentCard({
       <View style={{ alignItems: "center", flexDirection: "row", gap: 12 }}>
         <Avatar image={client?.image} name={client?.name || client?.email || "Client"} />
         <View style={{ flex: 1 }}>
-          <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>ENGINEER INVITATION</Text>
+          <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>MAIN CONTRACTOR INVITATION</Text>
           <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900", marginTop: 6 }}>
             {assignment.project?.name || "Assigned project"}
           </Text>
           <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
-            {assignment.project?.address || assignment.project?.description || "Client is requesting engineering work."}
+            {assignment.project?.address || assignment.project?.description || "Client is requesting Main Contractor work."}
           </Text>
         </View>
       </View>
@@ -184,7 +184,7 @@ function AssignmentDetailSheet({
         <Pressable style={styles.sheetScrim} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
-          <SheetHeader label="ENGINEER INVITATION" title={project.name} onClose={onClose} />
+          <SheetHeader label="MAIN CONTRACTOR INVITATION" title={project.name} onClose={onClose} />
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
             <DetailBlock>
               <InfoLine label="Status" value={project.status} />
