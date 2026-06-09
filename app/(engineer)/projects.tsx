@@ -32,7 +32,7 @@ export default function EngineerProjects() {
         refreshControl={<RefreshControl refreshing={projectsQuery.isRefetching} onRefresh={projectsQuery.refetch} tintColor={COLORS.PRIMARY} />}
       >
         <View style={{ gap: 6 }}>
-          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900" }}>Engineer projects</Text>
+          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 26, fontWeight: "900" }}>Main Contractor projects</Text>
           <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 14, lineHeight: 20 }}>
             Accepted projects are ready for milestone planning, BOQ, RFQs, and progress uploads.
           </Text>

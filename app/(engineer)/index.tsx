@@ -102,7 +102,7 @@ export default function EngineerDashboard() {
               route: "/(engineer)/projects" as const,
             }
           : {
-              title: "No active engineering work",
+              title: "No active contracting work",
               body: "Accept a client invitation to start managing project delivery.",
               icon: "briefcase-outline" as const,
               route: "/(engineer)/assignments" as const,
@@ -137,7 +137,7 @@ export default function EngineerDashboard() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={COLORS.PRIMARY} />}
       >
         <View style={{ gap: 16 }}>
-          <Header userName={user?.name || "Engineer"} />
+          <Header userName={user?.name || "Main Contractor"} />
           {missingProfileItems.length > 0 ? (
             <ProfileReminder
               missing={missingProfileItems}
@@ -171,7 +171,7 @@ export default function EngineerDashboard() {
 
               <View style={styles.darkPanel}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.darkEyebrow}>ENGINEERING PORTFOLIO</Text>
+                  <Text style={styles.darkEyebrow}>CONTRACTOR PORTFOLIO</Text>
                   <Text style={styles.darkValue}>{money(totalBudget)}</Text>
                   <Text style={styles.darkBody}>
                     {activeProjects.length} active project{activeProjects.length === 1 ? "" : "s"} under your delivery workspace.
@@ -283,7 +283,7 @@ function Header({ userName }: { userName: string }) {
       <View style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between" }}>
         <View style={{ flex: 1, paddingRight: 8 }}>
           <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>
-            ENGINEER PORTAL
+            MAIN CONTRACTOR PORTAL
           </Text>
           <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 28, fontWeight: "900" }}>
             Dashboard
@@ -336,7 +336,7 @@ function NextActionCard({
     <View style={styles.nextCard}>
       <View style={{ flex: 1 }}>
         <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 12, fontWeight: "900", opacity: 0.7 }}>
-          NEXT ENGINEER ACTION
+          NEXT CONTRACTOR ACTION
         </Text>
         <Text style={{ color: COLORS.TEXT_WHITE, fontSize: 24, fontWeight: "900", marginTop: 8 }}>
           {title}
@@ -519,7 +519,7 @@ function EmptyState() {
       <Ionicons name="briefcase-outline" size={38} color={COLORS.TEXT_LIGHT} />
       <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 16, fontWeight: "900", marginTop: 12 }}>No accepted projects</Text>
       <Text style={{ color: COLORS.TEXT_SECONDARY, lineHeight: 20, marginTop: 6, textAlign: "center" }}>
-        Accept a client invitation first, then your engineering workspace appears here.
+        Accept a client invitation first, then your Main Contractor workspace appears here.
       </Text>
     </View>
   );
