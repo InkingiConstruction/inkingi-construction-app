@@ -98,7 +98,7 @@ export default function EngineerProjectDetails() {
           <>
             <View style={styles.hero}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.heroEyebrow}>ENGINEERING DELIVERY</Text>
+                <Text style={styles.heroEyebrow}>CONTRACTOR DELIVERY</Text>
                 <Text style={styles.heroTitle}>{project.name}</Text>
                 <Text style={styles.heroBody}>
                   {project.address || project.description || "Assigned construction project"}

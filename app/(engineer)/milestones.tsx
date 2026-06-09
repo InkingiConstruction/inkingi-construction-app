@@ -169,7 +169,7 @@ export default function EngineerMilestones() {
           {projectsQuery.isLoading ? (
             <ActivityIndicator color={COLORS.PRIMARY} style={{ marginTop: 40 }} />
           ) : projects.length === 0 ? (
-            <Empty text="No accepted engineer projects found. Accept a client assignment first." />
+            <Empty text="No accepted Main Contractor projects found. Accept a client assignment first." />
           ) : (
             <>
               <ProjectSelector

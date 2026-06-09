@@ -98,7 +98,7 @@ export default function EngineerRfqs() {
         {projectsQuery.isLoading ? (
           <ActivityIndicator color={COLORS.PRIMARY} style={{ marginTop: 40 }} />
         ) : projects.length === 0 ? (
-          <Empty text="No accepted engineer projects found." />
+          <Empty text="No accepted Main Contractor projects found." />
         ) : (
           <>
             <Selector items={projects.map((project) => ({ id: project.id, title: project.name, subtitle: project.status }))} activeId={activeProjectId} onSelect={(id) => {
