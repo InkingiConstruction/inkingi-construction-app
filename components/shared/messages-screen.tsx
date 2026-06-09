@@ -3,8 +3,8 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { StatusBar } from "expo-status-bar";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
-import { useMemo, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -67,10 +67,21 @@ type ChatConversation = {
   unreadCount?: number;
 };
 
+const firstParam = (value?: string | string[]) =>
+  Array.isArray(value) ? value[0] : value;
+
 export function MessagesScreen() {
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
+  const params = useLocalSearchParams<{
+    recipientId?: string;
+    recipientName?: string;
+    recipientEmail?: string;
+    recipientRole?: string;
+    projectId?: string;
+  }>();
   const [selectedConversationId, setSelectedConversationId] = useState("");
+  const [handledDirectRecipientId, setHandledDirectRecipientId] = useState("");
   const [content, setContent] = useState("");
   const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [error, setError] = useState("");
@@ -92,6 +103,11 @@ export function MessagesScreen() {
   });
 
   const conversations = conversationsQuery.data || [];
+  const directRecipientId = firstParam(params.recipientId);
+  const directRecipientName = firstParam(params.recipientName);
+  const directRecipientEmail = firstParam(params.recipientEmail);
+  const directRecipientRole = firstParam(params.recipientRole);
+  const directProjectId = firstParam(params.projectId);
 
   const filteredConversations = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -108,12 +124,78 @@ export function MessagesScreen() {
         .includes(needle);
     });
   }, [conversations, search]);
-  const activeConversation = conversations.find(
-    (conversation) => conversation.id === selectedConversationId,
-  );
+  const pendingDirectConversation = useMemo<ChatConversation | null>(() => {
+    if (!directRecipientId) return null;
+
+    return {
+      id: `direct:${directRecipientId}`,
+      type: "direct",
+      recipientId: directRecipientId,
+      projectId: directProjectId,
+      title: directRecipientName || directRecipientEmail || "Direct chat",
+      subtitle: directRecipientRole || "Direct message",
+      participants: [
+        {
+          id: directRecipientId,
+          name: directRecipientName || directRecipientEmail || "Direct chat",
+          email: directRecipientEmail || "",
+          role: directRecipientRole || "user",
+        },
+      ],
+      lastMessage: null,
+      unreadCount: 0,
+    };
+  }, [
+    directProjectId,
+    directRecipientEmail,
+    directRecipientId,
+    directRecipientName,
+    directRecipientRole,
+  ]);
+  const activeConversation =
+    conversations.find(
+      (conversation) => conversation.id === selectedConversationId,
+    ) ||
+    (selectedConversationId === pendingDirectConversation?.id
+      ? pendingDirectConversation
+      : undefined);
+
+  useEffect(() => {
+    if (
+      !directRecipientId ||
+      handledDirectRecipientId === directRecipientId ||
+      conversationsQuery.isLoading
+    ) {
+      return;
+    }
+
+    const existingConversation = conversations.find(
+      (conversation) =>
+        conversation.type === "direct" &&
+        conversation.recipientId === directRecipientId,
+    );
+
+    setSelectedConversationId(
+      existingConversation?.id || `direct:${directRecipientId}`,
+    );
+    setHandledDirectRecipientId(directRecipientId);
+    setError("");
+  }, [
+    conversations,
+    conversationsQuery.isLoading,
+    directRecipientId,
+    handledDirectRecipientId,
+  ]);
+
+  const messagesQueryKey = [
+    "messages",
+    activeConversation?.id,
+    activeConversation?.recipientId,
+    activeConversation?.projectId,
+  ];
 
   const messagesQuery = useQuery({
-    queryKey: ["messages", activeConversation?.id],
+    queryKey: messagesQueryKey,
     enabled: Boolean(activeConversation),
     queryFn: async () => {
       const response = await api.get<ProjectMessage[]>(

@@ -30,14 +30,29 @@ type EngineerProfile = ClientUser & {
   avatar?: string | null;
   rating: number;
   completedJobsCount: number;
+  activeProjects: number;
+  successRate: number;
+  clientSatisfactionScore: number;
+  availabilityStatus: string;
   bio: string;
   phone?: string | null;
+  skills: string[];
+  qualifications: string[];
   certifications: string[];
+  areasOfExpertise: string[];
+  achievements: string[];
   gallery: string[];
   recentJobs: {
     id: string;
     title: string;
+    description?: string;
     clientName: string;
+    location?: string;
+    budget?: string;
+    progress?: number;
+    status?: string;
+    milestones?: string[];
+    imageUrl?: string;
     rating: number;
     feedback: string;
     completionDate: string;
@@ -58,15 +73,25 @@ const toEngineerProfile = (user: ClientUser): EngineerProfile => {
     avatar: user.image,
     rating: Number(roleSpecific.rating || 0),
     completedJobsCount: Number(roleSpecific.completedJobsCount || 0),
+    activeProjects: Number(roleSpecific.activeProjects || 0),
+    successRate: Number(roleSpecific.successRate || 0),
+    clientSatisfactionScore: Number(roleSpecific.clientSatisfactionScore || 0),
+    availabilityStatus: roleSpecific.availabilityStatus || "Available",
     bio:
       roleSpecific.bio ||
       `${user.name || "Engineer"} is a verified engineer registered on Inkingi.`,
     phone: (user as any).phoneNumber || null,
+    skills: Array.isArray(roleSpecific.skills) ? roleSpecific.skills : [],
+    qualifications: Array.isArray(roleSpecific.qualifications) ? roleSpecific.qualifications : [],
     certifications: Array.isArray(roleSpecific.certifications)
       ? roleSpecific.certifications
       : roleSpecific.licenseNumber
         ? [`License ${roleSpecific.licenseNumber}`]
         : ["Registration profile submitted"],
+    areasOfExpertise: Array.isArray(roleSpecific.areasOfExpertise)
+      ? roleSpecific.areasOfExpertise
+      : [],
+    achievements: Array.isArray(roleSpecific.achievements) ? roleSpecific.achievements : [],
     gallery: Array.isArray(roleSpecific.gallery) ? roleSpecific.gallery : [],
     recentJobs: Array.isArray(roleSpecific.recentJobs) ? roleSpecific.recentJobs : [],
   };
@@ -605,6 +630,17 @@ export default function AssignEngineerScreen() {
                       </Text>
                     </View>
 
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      <Badge label={viewingEngineer.availabilityStatus} />
+                      {viewingEngineer.areasOfExpertise.slice(0, 3).map((item) => (
+                        <Badge key={item} label={item} />
+                      ))}
+                    </View>
+
+                    <PortfolioChips title="Skills" items={viewingEngineer.skills} />
+                    <PortfolioChips title="Qualifications" items={viewingEngineer.qualifications} />
+                    <PortfolioChips title="Achievements" items={viewingEngineer.achievements} />
+
                     {/* Profile Gallery */}
                     {viewingEngineer.gallery && viewingEngineer.gallery.length > 0 && (
                       <View>
@@ -632,6 +668,26 @@ export default function AssignEngineerScreen() {
                         <Text style={styles.statLabel}>Jobs Done</Text>
                       </View>
                     </View>
+                    <View style={{ flexDirection: "row", gap: 10 }}>
+                      <View style={styles.statBox}>
+                        <Text style={styles.statNum}>{viewingEngineer.activeProjects}</Text>
+                        <Text style={styles.statLabel}>Active</Text>
+                      </View>
+                      <View style={styles.statBox}>
+                        <Text style={styles.statNum}>{viewingEngineer.successRate}%</Text>
+                        <Text style={styles.statLabel}>Success</Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 10 }}>
+                      <View style={styles.statBox}>
+                        <Text style={styles.statNum}>{viewingEngineer.clientSatisfactionScore}%</Text>
+                        <Text style={styles.statLabel}>Satisfaction</Text>
+                      </View>
+                      <View style={styles.statBox}>
+                        <Text style={styles.statNum}>{viewingEngineer.recentJobs.length}</Text>
+                        <Text style={styles.statLabel}>Portfolio</Text>
+                      </View>
+                    </View>
 
                     <View style={{ gap: 8 }}>
                       <Text style={styles.sectionLabel}>Secure Communication</Text>
@@ -640,8 +696,18 @@ export default function AssignEngineerScreen() {
                       </Text>
                       <Pressable
                         onPress={() => {
+                          const engineer = viewingEngineer;
                           setViewingEngineer(null);
-                          router.push("/(client)/messages" as never);
+                          router.push({
+                            pathname: "/(client)/messages",
+                            params: {
+                              projectId,
+                              recipientEmail: engineer.email || "",
+                              recipientId: engineer.id,
+                              recipientName: engineer.name || "Contractor",
+                              recipientRole: engineer.role || "engineer",
+                            },
+                          } as never);
                         }}
                         style={{
                           alignItems: "center",
@@ -735,17 +801,62 @@ export default function AssignEngineerScreen() {
                 {/* Recent Jobs / Supervision History Tab */}
                 {activeTab === "jobs" && (
                   <View style={{ gap: 12 }}>
-                    <Text style={styles.sectionLabel}>Previous Supervision History</Text>
+                    <Text style={styles.sectionLabel}>Rwanda Project Experience</Text>
                     {viewingEngineer.recentJobs.map(job => (
                       <View key={job.id} style={styles.jobRow}>
-                        <Ionicons name="briefcase-outline" size={20} color={COLORS.PRIMARY} />
+                        {job.imageUrl ? (
+                          <Image
+                            source={{ uri: job.imageUrl }}
+                            style={{ width: 64, height: 58, borderRadius: 8, backgroundColor: COLORS.BORDER_LIGHT }}
+                          />
+                        ) : (
+                          <View
+                            style={{
+                              alignItems: "center",
+                              backgroundColor: COLORS.PRIMARY_LIGHT,
+                              borderRadius: 8,
+                              height: 58,
+                              justifyContent: "center",
+                              width: 64,
+                            }}
+                          >
+                            <Ionicons name="briefcase-outline" size={20} color={COLORS.PRIMARY} />
+                          </View>
+                        )}
                         <View style={{ flex: 1 }}>
-                          <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "bold", fontSize: 13 }}>
-                            {job.title}
-                          </Text>
+                          <View style={{ alignItems: "center", flexDirection: "row", gap: 6 }}>
+                            <Text style={{ color: COLORS.TEXT_PRIMARY, flex: 1, fontWeight: "bold", fontSize: 13 }}>
+                              {job.title}
+                            </Text>
+                            <Badge label={job.status || "Completed"} small />
+                          </View>
                           <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11, marginTop: 2 }}>
-                            Completed on: {job.completionDate}
+                            {job.location || "Rwanda"}
+                            {job.budget ? ` • ${Number(job.budget).toLocaleString()} RWF` : ""}
+                            {job.completionDate ? ` • ${job.completionDate}` : ""}
                           </Text>
+                          {job.description ? (
+                            <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 11, lineHeight: 16, marginTop: 5 }}>
+                              {job.description}
+                            </Text>
+                          ) : null}
+                          <View style={{ backgroundColor: COLORS.BORDER_LIGHT, borderRadius: 999, height: 6, marginTop: 8, overflow: "hidden" }}>
+                            <View
+                              style={{
+                                backgroundColor: COLORS.PRIMARY,
+                                height: 6,
+                                width: `${Math.max(0, Math.min(100, Number(job.progress || 0)))}%`,
+                              }}
+                            />
+                          </View>
+                          <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 10, fontWeight: "800", marginTop: 4 }}>
+                            {Math.max(0, Math.min(100, Number(job.progress || 0)))}% progress
+                          </Text>
+                          {job.milestones?.length ? (
+                            <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 10, fontWeight: "700", lineHeight: 15, marginTop: 4 }}>
+                              Milestones: {job.milestones.join(", ")}
+                            </Text>
+                          ) : null}
                         </View>
                       </View>
                     ))}
@@ -941,6 +1052,68 @@ export default function AssignEngineerScreen() {
       )}
 
     </SafeAreaView>
+  );
+}
+
+function Badge({ label, small = false }: { label: string; small?: boolean }) {
+  const normalized = label.toLowerCase();
+  const color =
+    normalized.includes("available") || normalized.includes("completed")
+      ? COLORS.SUCCESS
+      : normalized.includes("busy") || normalized.includes("progress")
+        ? COLORS.PRIMARY
+        : normalized.includes("leave") || normalized.includes("hold")
+          ? COLORS.WARNING
+          : COLORS.TEXT_SECONDARY;
+
+  return (
+    <View
+      style={{
+        backgroundColor: `${color}12`,
+        borderColor: `${color}33`,
+        borderRadius: 999,
+        borderWidth: 1,
+        paddingHorizontal: small ? 7 : 10,
+        paddingVertical: small ? 4 : 6,
+      }}
+    >
+      <Text
+        style={{
+          color,
+          fontSize: small ? 9 : 10,
+          fontWeight: "900",
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function PortfolioChips({ title, items }: { title: string; items: string[] }) {
+  if (!items.length) return null;
+
+  return (
+    <View>
+      <Text style={styles.sectionLabel}>{title}</Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
+        {items.slice(0, 8).map((item) => (
+          <View
+            key={`${title}-${item}`}
+            style={{
+              backgroundColor: COLORS.PRIMARY_LIGHT,
+              borderRadius: 999,
+              paddingHorizontal: 10,
+              paddingVertical: 7,
+            }}
+          >
+            <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 11, fontWeight: "900" }}>
+              {item}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 

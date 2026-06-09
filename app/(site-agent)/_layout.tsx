@@ -5,13 +5,11 @@ export default function SiteAgentLayout() {
     <RoleTabs
       tabs={[
         { name: "index", title: "Home", icon: "home-outline" },
-        { name: "daily-report", title: "Reports", icon: "clipboard-outline" },
-        { name: "inventory", title: "Stock", icon: "cube-outline" },
-        { name: "receiving", title: "Receive", icon: "keypad-outline" },
+        { name: "projects", title: "Projects", icon: "business-outline" },
         { name: "messages", title: "Chat", icon: "chatbubbles-outline" },
         { name: "settings", title: "Settings", icon: "settings-outline" },
       ]}
-      hiddenRoutes={["profile-edit"]}
+      hiddenRoutes={["daily-report", "inventory", "profile-edit", "privacy", "receiving", "terms"]}
     />
   );
 }

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -147,6 +147,7 @@ function InvitationCard({
   onOpen: () => void;
 }) {
   const project = assignment.project;
+  const client = project?.client;
 
   return (
     <Pressable
@@ -159,13 +160,18 @@ function InvitationCard({
         padding: 16,
       }}
     >
-      <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>INVITED PROJECT</Text>
-      <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900", marginTop: 6 }}>
-        {project?.name || "Project invitation"}
-      </Text>
-      <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
-        {project?.address || project?.description || "Client is requesting your supervision before inspections can begin."}
-      </Text>
+      <View style={{ alignItems: "center", flexDirection: "row", gap: 12 }}>
+        <Avatar image={client?.image} name={client?.name || client?.email || "Client"} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>INVITED PROJECT</Text>
+          <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 18, fontWeight: "900", marginTop: 6 }}>
+            {project?.name || "Project invitation"}
+          </Text>
+          <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 4 }}>
+            {project?.address || project?.description || "Client is requesting your supervision before inspections can begin."}
+          </Text>
+        </View>
+      </View>
       <View style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 8, flexDirection: "row", gap: 8, justifyContent: "center", marginTop: 14, paddingVertical: 12 }}>
         <Ionicons name="document-text-outline" size={18} color={COLORS.PRIMARY_DARK} />
         <Text style={{ color: COLORS.PRIMARY_DARK, fontWeight: "900" }}>
@@ -173,6 +179,20 @@ function InvitationCard({
         </Text>
       </View>
     </Pressable>
+  );
+}
+
+function Avatar({ image, name }: { image?: string | null; name?: string | null }) {
+  return (
+    <View style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 24, height: 48, justifyContent: "center", overflow: "hidden", width: 48 }}>
+      {image ? (
+        <Image source={{ uri: image }} style={{ height: 48, width: 48 }} />
+      ) : (
+        <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 16, fontWeight: "900" }}>
+          {(name || "U").slice(0, 1).toUpperCase()}
+        </Text>
+      )}
+    </View>
   );
 }
 

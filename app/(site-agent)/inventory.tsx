@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
@@ -18,15 +19,27 @@ type InventoryLog = {
 };
 
 export default function SiteAgentInventory() {
+  const params = useLocalSearchParams<{ projectId?: string }>();
   const [material, setMaterial] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState(params.projectId || "");
   const queryClient = useQueryClient();
   const projectsQuery = useQuery({
     queryKey: ["site-agent-projects"],
     queryFn: async () => (await api.get<Project[]>(ENDPOINTS.PROJECTS.LIST)).data,
   });
-  const activeProject = (projectsQuery.data || []).find((project) => project.status === "active");
+  const projects = projectsQuery.data || [];
+  const activeProjects = projects.filter((project) => project.status === "active");
+  const activeProject =
+    activeProjects.find((project) => project.id === selectedProjectId) ||
+    activeProjects[0];
+
+  useEffect(() => {
+    if (!selectedProjectId && activeProjects[0]?.id) {
+      setSelectedProjectId(activeProjects[0].id);
+    }
+  }, [activeProjects, selectedProjectId]);
   const logsQuery = useQuery({
     enabled: Boolean(activeProject?.id),
     queryKey: ["site-agent-inventory-logs", activeProject?.id],
@@ -86,9 +99,29 @@ export default function SiteAgentInventory() {
           ) : (
             <>
               <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>ACTIVE PROJECT</Text>
-              <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 15, fontWeight: "900", marginTop: 3 }}>
-                {activeProject?.name || "No active project assigned"}
-              </Text>
+              {activeProjects.length > 0 ? (
+                <View style={{ gap: 8, marginTop: 10 }}>
+                  {activeProjects.map((project) => (
+                    <Pressable
+                      key={project.id}
+                      onPress={() => setSelectedProjectId(project.id)}
+                      style={{
+                        backgroundColor: activeProject?.id === project.id ? COLORS.PRIMARY_LIGHT : COLORS.MUTED,
+                        borderColor: activeProject?.id === project.id ? COLORS.PRIMARY : COLORS.BORDER_LIGHT,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        padding: 11,
+                      }}
+                    >
+                      <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>{project.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <Text style={{ color: COLORS.TEXT_PRIMARY, fontSize: 15, fontWeight: "900", marginTop: 3 }}>
+                  No active project assigned
+                </Text>
+              )}
             </>
           )}
         </View>

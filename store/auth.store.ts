@@ -44,6 +44,8 @@ interface AuthState {
     notificationPrefs?: Record<string, boolean>;
     bio?: string;
     image?: string;
+    roleSpecific?: Record<string, unknown>;
+    portfolioImages?: Array<{ uri: string; index: number }>;
   }) => Promise<void>;
 }
 
@@ -176,8 +178,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ loading: true });
     try {
       const hasLocalImage =
-        typeof data.image === "string" && data.image.startsWith("file");
-      const payload = hasLocalImage
+        typeof data.image === "string" &&
+        (data.image.startsWith("file") || data.image.startsWith("content:"));
+      const hasPortfolioImages = Boolean(data.portfolioImages?.length);
+      const payload = hasLocalImage || hasPortfolioImages
         ? new FormData()
         : {
             name: data.name,
@@ -187,6 +191,7 @@ export const useAuthStore = create<AuthState>((set) => ({
             notificationPrefs: data.notificationPrefs,
             bio: data.bio,
             image: data.image,
+            roleSpecific: data.roleSpecific,
           };
 
       if (payload instanceof FormData) {
@@ -195,14 +200,28 @@ export const useAuthStore = create<AuthState>((set) => ({
         if (data.displayUsername !== undefined) payload.append("displayUsername", data.displayUsername);
         if (data.phoneNumber !== undefined) payload.append("phoneNumber", data.phoneNumber);
         if (data.bio !== undefined) payload.append("bio", data.bio);
+        if (data.roleSpecific !== undefined) {
+          payload.append("roleSpecific", JSON.stringify(data.roleSpecific));
+        }
         if (data.notificationPrefs !== undefined) {
           payload.append("notificationPrefs", JSON.stringify(data.notificationPrefs));
         }
-        payload.append("image", {
-          uri: data.image,
-          name: "profile-image.jpg",
-          type: "image/jpeg",
-        } as unknown as Blob);
+        if (hasLocalImage) {
+          payload.append("image", {
+            uri: data.image,
+            name: "profile-image.jpg",
+            type: "image/jpeg",
+          } as unknown as Blob);
+        } else if (data.image !== undefined) {
+          payload.append("image", data.image);
+        }
+        data.portfolioImages?.forEach((item) => {
+          payload.append(`portfolioImage_${item.index}`, {
+            uri: item.uri,
+            name: `portfolio-${item.index}.jpg`,
+            type: "image/jpeg",
+          } as unknown as Blob);
+        });
       }
 
       const response = await api.patch<{ user: User }>(

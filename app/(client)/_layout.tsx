@@ -26,6 +26,8 @@ export default function RootLayout() {
         "notifications",
         "profile",
         "profile-edit",
+        "privacy",
+        "terms",
         "milestones",
         "disputes",
       ]}

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -92,6 +92,7 @@ export default function AssignSiteAgent() {
                   title={agent.name || agent.email || "Site Agent"}
                   subtitle={agent.kycStatus || "kyc pending"}
                   icon="person-circle-outline"
+                  image={agent.image}
                   onPress={() => setSiteAgentId(agent.id)}
                 />
               ))}
@@ -137,12 +138,14 @@ function Choice({
   title,
   subtitle,
   icon,
+  image,
   onPress,
 }: {
   active: boolean;
   title: string;
   subtitle: string;
   icon: keyof typeof Ionicons.glyphMap;
+  image?: string | null;
   onPress: () => void;
 }) {
   return (
@@ -159,7 +162,13 @@ function Choice({
         padding: 12,
       }}
     >
-      <Ionicons name={icon} size={20} color={active ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} />
+      <View style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 20, height: 40, justifyContent: "center", overflow: "hidden", width: 40 }}>
+        {image ? (
+          <Image source={{ uri: image }} style={{ height: 40, width: 40 }} />
+        ) : (
+          <Ionicons name={icon} size={20} color={active ? COLORS.PRIMARY : COLORS.TEXT_SECONDARY} />
+        )}
+      </View>
       <View style={{ flex: 1 }}>
         <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>{title}</Text>
         <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 3 }}>{subtitle}</Text>

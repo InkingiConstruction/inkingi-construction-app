@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -21,6 +21,7 @@ type NotificationItem = {
 
 export default function SupervisorIndex() {
   const user = useAuthStore((state) => state.user);
+  const missingProfileItems = getMissingProfessionalProfileItems(user);
   const queryClient = useQueryClient();
   const projectsQuery = useQuery({
     queryKey: ["supervisor-projects"],
@@ -185,6 +186,13 @@ export default function SupervisorIndex() {
               </Text>
             </View>
           </View>
+
+          {missingProfileItems.length > 0 ? (
+            <ProfileReminder
+              missing={missingProfileItems}
+              onPress={() => router.push("/(supervisor)/profile-edit" as never)}
+            />
+          ) : null}
         </View>
 
         {loading ? (
@@ -335,6 +343,65 @@ export default function SupervisorIndex() {
   );
 }
 
+function getMissingProfessionalProfileItems(user: ReturnType<typeof useAuthStore.getState>["user"]) {
+  const roleSpecific =
+    user?.roleSpecific && typeof user.roleSpecific === "object"
+      ? (user.roleSpecific as Record<string, unknown>)
+      : {};
+  const missing: string[] = [];
+
+  if (!(user?.image || user?.avatar)) missing.push("profile photo");
+  if (!roleSpecific.bio) missing.push("bio");
+  if (!(roleSpecific.specialty || roleSpecific.specialization || roleSpecific.focusArea)) missing.push("focus area");
+  if (!roleSpecific.yearsOfExperience) missing.push("experience");
+  if (!Array.isArray(roleSpecific.skills) || roleSpecific.skills.length === 0) missing.push("skills");
+  if (!Array.isArray(roleSpecific.certifications) || roleSpecific.certifications.length === 0) missing.push("certifications");
+  if (!Array.isArray(roleSpecific.recentJobs) || roleSpecific.recentJobs.length === 0) missing.push("portfolio projects");
+
+  return missing;
+}
+
+function ProfileReminder({ missing, onPress }: { missing: string[]; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        alignItems: "center",
+        backgroundColor: COLORS.PRIMARY_LIGHT,
+        borderColor: COLORS.PRIMARY,
+        borderRadius: 10,
+        borderWidth: 1,
+        flexDirection: "row",
+        gap: 12,
+        padding: 14,
+      }}
+    >
+      <View
+        style={{
+          alignItems: "center",
+          backgroundColor: COLORS.SURFACE,
+          borderRadius: 9,
+          height: 40,
+          justifyContent: "center",
+          width: 40,
+        }}
+      >
+        <Ionicons name="person-add-outline" size={20} color={COLORS.PRIMARY_DARK} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 14, fontWeight: "900" }}>
+          Complete your professional profile
+        </Text>
+        <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, lineHeight: 18, marginTop: 3 }}>
+          Add {missing.slice(0, 3).join(", ")}
+          {missing.length > 3 ? ` and ${missing.length - 3} more` : ""} so clients can review your inspection experience.
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={COLORS.PRIMARY_DARK} />
+    </Pressable>
+  );
+}
+
 function InvitationPanel({
   assignment,
   loading,
@@ -346,6 +413,8 @@ function InvitationPanel({
   onAccept: () => void;
   onReject: () => void;
 }) {
+  const client = assignment.project?.client;
+
   return (
     <View
       style={{
@@ -357,18 +426,7 @@ function InvitationPanel({
       }}
     >
       <View style={{ flexDirection: "row", gap: 12 }}>
-        <View
-          style={{
-            alignItems: "center",
-            backgroundColor: COLORS.PRIMARY_LIGHT,
-            borderRadius: 10,
-            height: 44,
-            justifyContent: "center",
-            width: 44,
-          }}
-        >
-          <Ionicons name="mail-unread-outline" size={22} color={COLORS.PRIMARY_DARK} />
-        </View>
+        <Avatar image={client?.image} name={client?.name || client?.email || "Client"} />
         <View style={{ flex: 1 }}>
           <Text style={{ color: COLORS.TEXT_LIGHT, fontSize: 11, fontWeight: "900" }}>
             PROJECT INVITATION
@@ -411,6 +469,20 @@ function InvitationPanel({
           </Text>
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+function Avatar({ image, name }: { image?: string | null; name?: string | null }) {
+  return (
+    <View style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 22, height: 44, justifyContent: "center", overflow: "hidden", width: 44 }}>
+      {image ? (
+        <Image source={{ uri: image }} style={{ height: 44, width: 44 }} />
+      ) : (
+        <Text style={{ color: COLORS.PRIMARY_DARK, fontSize: 15, fontWeight: "900" }}>
+          {(name || "U").slice(0, 1).toUpperCase()}
+        </Text>
+      )}
     </View>
   );
 }

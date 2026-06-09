@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api/api";
 import { ENDPOINTS } from "@/api/endpoints";
@@ -92,6 +92,7 @@ export default function AssignSupervisor() {
                   title={supervisor.name || supervisor.email || "Supervisor"}
                   subtitle={`${supervisor.email || "No email"} • ${supervisor.kycStatus || "kyc pending"}`}
                   icon="shield-checkmark-outline"
+                  image={supervisor.image}
                   onPress={() => setSupervisorId(supervisor.id)}
                 />
               ))}
@@ -132,7 +133,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Choice({ active, title, subtitle, icon, onPress }: { active: boolean; title: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
+function Choice({ active, title, subtitle, icon, image, onPress }: { active: boolean; title: string; subtitle: string; icon: keyof typeof Ionicons.glyphMap; image?: string | null; onPress: () => void }) {
   return (
     <Pressable
       onPress={onPress}
@@ -147,7 +148,13 @@ function Choice({ active, title, subtitle, icon, onPress }: { active: boolean; t
         padding: 13,
       }}
     >
-      <Ionicons name={icon} size={20} color={COLORS.PRIMARY} />
+      <View style={{ alignItems: "center", backgroundColor: COLORS.PRIMARY_LIGHT, borderRadius: 20, height: 40, justifyContent: "center", overflow: "hidden", width: 40 }}>
+        {image ? (
+          <Image source={{ uri: image }} style={{ height: 40, width: 40 }} />
+        ) : (
+          <Ionicons name={icon} size={20} color={COLORS.PRIMARY} />
+        )}
+      </View>
       <View style={{ flex: 1 }}>
         <Text style={{ color: COLORS.TEXT_PRIMARY, fontWeight: "900" }}>{title}</Text>
         <Text style={{ color: COLORS.TEXT_SECONDARY, fontSize: 12, marginTop: 3 }}>{subtitle}</Text>

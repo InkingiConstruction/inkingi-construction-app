@@ -6,14 +6,14 @@ export type SupervisorProject = {
   budget?: string | number;
   currency?: string;
   address?: string | null;
-  client?: { name?: string; email?: string };
-  engineer?: { name?: string; email?: string } | null;
+  client?: { name?: string; email?: string; image?: string | null };
+  engineer?: { name?: string; email?: string; image?: string | null } | null;
   milestones?: SupervisorMilestone[];
   projectMembers?: {
     id: string;
     role: string;
     status: string;
-    user?: { name?: string; email?: string };
+    user?: { name?: string; email?: string; image?: string | null };
   }[];
   createdAt?: string;
 };

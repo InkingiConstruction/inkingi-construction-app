@@ -18,6 +18,8 @@ export default function RootLayout() {
         "notifications",
         "profile",
         "profile-edit",
+        "privacy",
+        "terms",
         "progress-detail",
         "project/[id]",
       ]}

@@ -25,44 +25,54 @@ type ProfileRoute =
   | "/(client)/milestones"
   | "/(client)/notifications"
   | "/(client)/payments"
+  | "/(client)/privacy"
   | "/(client)/profile-edit"
   | "/(client)/projects"
   | "/(client)/settings"
+  | "/(client)/terms"
   | "/(engineer)"
   | "/(engineer)/assignments"
   | "/(engineer)/boq"
   | "/(engineer)/messages"
   | "/(engineer)/milestones"
   | "/(engineer)/notifications"
+  | "/(engineer)/privacy"
   | "/(engineer)/profile-edit"
   | "/(engineer)/progress"
   | "/(engineer)/projects"
   | "/(engineer)/rfqs"
   | "/(engineer)/settings"
+  | "/(engineer)/terms"
   | "/(supervisor)"
   | "/(supervisor)/inspections"
   | "/(supervisor)/messages"
   | "/(supervisor)/notifications"
+  | "/(supervisor)/privacy"
   | "/(supervisor)/profile-edit"
   | "/(supervisor)/progress-review"
   | "/(supervisor)/projects"
   | "/(supervisor)/settings"
+  | "/(supervisor)/terms"
   | "/(supplier)"
   | "/(supplier)/deliveries"
   | "/(supplier)/messages"
   | "/(supplier)/notifications"
+  | "/(supplier)/privacy"
   | "/(supplier)/profile-edit"
   | "/(supplier)/purchase-orders"
   | "/(supplier)/quotes"
   | "/(supplier)/rfqs"
   | "/(supplier)/settings"
+  | "/(supplier)/terms"
   | "/(site-agent)"
   | "/(site-agent)/daily-report"
   | "/(site-agent)/inventory"
   | "/(site-agent)/messages"
+  | "/(site-agent)/privacy"
   | "/(site-agent)/profile-edit"
   | "/(site-agent)/receiving"
-  | "/(site-agent)/settings";
+  | "/(site-agent)/settings"
+  | "/(site-agent)/terms";
 
 type ProfileAction = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -308,6 +318,24 @@ const roleProfileEdit: Record<UserRole, ProfileRoute> = {
   site_agent: "/(site-agent)/profile-edit",
 };
 
+const rolePrivacy: Record<UserRole, ProfileRoute> = {
+  admin: "/(client)/privacy",
+  client: "/(client)/privacy",
+  engineer: "/(engineer)/privacy",
+  supervisor: "/(supervisor)/privacy",
+  supplier: "/(supplier)/privacy",
+  site_agent: "/(site-agent)/privacy",
+};
+
+const roleTerms: Record<UserRole, ProfileRoute> = {
+  admin: "/(client)/terms",
+  client: "/(client)/terms",
+  engineer: "/(engineer)/terms",
+  supervisor: "/(supervisor)/terms",
+  supplier: "/(supplier)/terms",
+  site_agent: "/(site-agent)/terms",
+};
+
 export function ProfileScreen() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
@@ -317,6 +345,63 @@ export function ProfileScreen() {
   const imageUri = user?.image || user?.avatar || "";
   const roleInfo = roleCopy[role] || roleCopy.client;
   const actions = roleActions[role] || roleActions.client;
+  const roleSpecific =
+    user?.roleSpecific && typeof user.roleSpecific === "object"
+      ? (user.roleSpecific as Record<string, unknown>)
+      : {};
+  const professionalBio =
+    typeof roleSpecific.bio === "string" ? roleSpecific.bio : user?.bio || "";
+  const professionalSpecialty =
+    typeof roleSpecific.specialization === "string"
+      ? roleSpecific.specialization
+      : typeof roleSpecific.specialty === "string"
+        ? roleSpecific.specialty
+        : typeof roleSpecific.focusArea === "string"
+          ? roleSpecific.focusArea
+          : "";
+  const recentWorks = Array.isArray(roleSpecific.recentJobs)
+    ? roleSpecific.recentJobs.filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item) && typeof item === "object" && !Array.isArray(item),
+      )
+    : [];
+  const professionalList = (value: unknown) =>
+    Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+  const skills = professionalList(roleSpecific.skills);
+  const qualifications = professionalList(roleSpecific.qualifications);
+  const certifications = professionalList(roleSpecific.certifications);
+  const areasOfExpertise = professionalList(roleSpecific.areasOfExpertise);
+  const achievements = professionalList(roleSpecific.achievements);
+  const availabilityStatus =
+    typeof roleSpecific.availabilityStatus === "string"
+      ? roleSpecific.availabilityStatus
+      : "";
+  const professionalStats = [
+    {
+      label: "Completed",
+      value: Number(roleSpecific.projectsCompleted || roleSpecific.completedJobsCount || 0),
+    },
+    {
+      label: "Active",
+      value: Number(roleSpecific.activeProjects || 0),
+    },
+    {
+      label: "Success",
+      value: `${Number(roleSpecific.successRate || 0)}%`,
+    },
+    {
+      label: "Satisfaction",
+      value: `${Number(roleSpecific.clientSatisfactionScore || 0)}%`,
+    },
+  ];
+  const shouldShowProfessionalProfile =
+    (role === "engineer" || role === "supervisor") &&
+    (professionalBio ||
+      professionalSpecialty ||
+      availabilityStatus ||
+      skills.length > 0 ||
+      certifications.length > 0 ||
+      recentWorks.length > 0);
 
   const completion = useMemo(() => {
     let score = 20;
@@ -475,6 +560,111 @@ export function ProfileScreen() {
           />
         </View>
 
+        {shouldShowProfessionalProfile ? (
+          <Group title="Professional Profile">
+            {professionalSpecialty ? (
+              <MenuRow
+                icon="ribbon-outline"
+                label={role === "supervisor" ? "Focus area" : "Specialty"}
+                value={professionalSpecialty}
+                onPress={() => go(roleProfileEdit[role])}
+              />
+            ) : null}
+            {availabilityStatus ? (
+              <View style={styles.professionalMetaRow}>
+                <StatusBadge label={availabilityStatus} />
+              </View>
+            ) : null}
+            <View style={styles.statsGrid}>
+              {professionalStats.map((stat) => (
+                <View key={stat.label} style={styles.statTile}>
+                  <Text style={styles.statValue}>{stat.value}</Text>
+                  <Text style={styles.statLabel}>{stat.label}</Text>
+                </View>
+              ))}
+            </View>
+            {professionalBio ? (
+              <View style={styles.professionalBioCard}>
+                <Text style={styles.professionalLabel}>Bio</Text>
+                <Text style={styles.professionalBody}>{professionalBio}</Text>
+              </View>
+            ) : null}
+            <ChipSection title="Skills" items={skills} />
+            <ChipSection title="Qualifications" items={qualifications} />
+            <ChipSection title="Certifications" items={certifications} />
+            <ChipSection title="Expertise" items={areasOfExpertise} />
+            <ChipSection title="Achievements" items={achievements} />
+            {recentWorks.length > 0 ? (
+              <View style={styles.workList}>
+                {recentWorks.slice(0, 3).map((work, index) => {
+                  const title =
+                    typeof work.title === "string"
+                      ? work.title
+                      : `Rwanda project ${index + 1}`;
+                  const location =
+                    typeof work.location === "string"
+                      ? work.location
+                      : "Rwanda";
+                  const progress = Math.max(
+                    0,
+                    Math.min(100, Number(work.progress || 0)),
+                  );
+                  const image =
+                    typeof work.imageUrl === "string" ? work.imageUrl : "";
+                  const status =
+                    typeof work.status === "string" ? work.status : "Completed";
+                  const budget =
+                    typeof work.budget === "string" && work.budget
+                      ? `${Number(work.budget).toLocaleString()} RWF`
+                      : "";
+                  const milestones = Array.isArray(work.milestones)
+                    ? work.milestones.map(String).filter(Boolean)
+                    : [];
+
+                  return (
+                    <View key={`${title}-${index}`} style={styles.workCard}>
+                      {image ? (
+                        <Image source={{ uri: image }} style={styles.workImage} />
+                      ) : (
+                        <View style={styles.workImagePlaceholder}>
+                          <Ionicons
+                            name="business-outline"
+                            size={22}
+                            color={COLORS.PRIMARY_DARK}
+                          />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.workTitleRow}>
+                          <Text style={styles.workTitle}>{title}</Text>
+                          <StatusBadge label={status} small />
+                        </View>
+                        <Text style={styles.workLocation}>
+                          {location}{budget ? ` • ${budget}` : ""}
+                        </Text>
+                        <View style={styles.progressTrack}>
+                          <View
+                            style={[
+                              styles.progressFill,
+                              { width: `${progress}%` },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.progressText}>{progress}% progress</Text>
+                        {milestones.length > 0 ? (
+                          <Text style={styles.workMilestones} numberOfLines={2}>
+                            Milestones: {milestones.join(", ")}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
+          </Group>
+        ) : null}
+
         <Group title="Workspace">
           {actions.map((action) => (
             <MenuRow
@@ -556,7 +746,24 @@ export function ProfileScreen() {
             value="Open"
             onPress={() => go(roleSettings[role])}
           />
+          {/*
           <MenuRow icon="language-outline" label="Language" value="English" />
+          */}
+        </Group>
+
+        <Group title="Legal">
+          <MenuRow
+            icon="shield-checkmark-outline"
+            label="Privacy Policy"
+            value="Read"
+            onPress={() => go(rolePrivacy[role])}
+          />
+          <MenuRow
+            icon="document-text-outline"
+            label="Terms & Conditions"
+            value="Read"
+            onPress={() => go(roleTerms[role])}
+          />
         </Group>
 
         <View style={styles.footer}>
@@ -616,6 +823,47 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
     <View style={styles.group}>
       <Text style={styles.groupTitle}>{title}</Text>
       {children}
+    </View>
+  );
+}
+
+function ChipSection({ title, items }: { title: string; items: string[] }) {
+  if (!items.length) return null;
+
+  return (
+    <View style={styles.chipSection}>
+      <Text style={styles.professionalLabel}>{title}</Text>
+      <View style={styles.chipWrap}>
+        {items.slice(0, 8).map((item) => (
+          <View key={`${title}-${item}`} style={styles.chip}>
+            <Text style={styles.chipText}>{item}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function StatusBadge({ label, small = false }: { label: string; small?: boolean }) {
+  const normalized = label.toLowerCase();
+  const color =
+    normalized.includes("available") || normalized.includes("completed")
+      ? COLORS.SUCCESS
+      : normalized.includes("busy") || normalized.includes("progress")
+        ? COLORS.PRIMARY
+        : normalized.includes("leave") || normalized.includes("hold")
+          ? COLORS.WARNING
+          : COLORS.TEXT_SECONDARY;
+
+  return (
+    <View
+      style={[
+        styles.statusBadge,
+        small ? styles.statusBadgeSmall : undefined,
+        { borderColor: `${color}33`, backgroundColor: `${color}12` },
+      ]}
+    >
+      <Text style={[styles.statusBadgeText, { color }]}>{label}</Text>
     </View>
   );
 }
@@ -869,6 +1117,167 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     textTransform: "uppercase",
+  },
+  professionalBioCard: {
+    backgroundColor: COLORS.BACKGROUND,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginHorizontal: 12,
+    marginVertical: 6,
+    padding: 12,
+  },
+  professionalLabel: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 11,
+    fontWeight: "900",
+    marginBottom: 5,
+    textTransform: "uppercase",
+  },
+  professionalBody: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 20,
+  },
+  professionalMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  statTile: {
+    backgroundColor: COLORS.BACKGROUND,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexBasis: "48%",
+    flexGrow: 1,
+    padding: 10,
+  },
+  statValue: {
+    color: COLORS.TEXT_PRIMARY,
+    fontSize: 17,
+    fontWeight: "900",
+  },
+  statLabel: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+  chipSection: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  chipWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+  chip: {
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  chipText: {
+    color: COLORS.PRIMARY_DARK,
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  statusBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  statusBadgeSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  workList: {
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  workCard: {
+    alignItems: "center",
+    backgroundColor: COLORS.BACKGROUND,
+    borderColor: COLORS.BORDER_LIGHT,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 10,
+  },
+  workImage: {
+    backgroundColor: COLORS.MUTED,
+    borderRadius: 7,
+    height: 68,
+    width: 76,
+  },
+  workImagePlaceholder: {
+    alignItems: "center",
+    backgroundColor: COLORS.PRIMARY_LIGHT,
+    borderRadius: 7,
+    height: 68,
+    justifyContent: "center",
+    width: 76,
+  },
+  workTitle: {
+    color: COLORS.TEXT_PRIMARY,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  workTitleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 7,
+  },
+  workLocation: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+  progressTrack: {
+    backgroundColor: COLORS.BORDER_LIGHT,
+    borderRadius: 999,
+    height: 6,
+    marginTop: 9,
+    overflow: "hidden",
+  },
+  progressFill: {
+    backgroundColor: COLORS.PRIMARY,
+    borderRadius: 999,
+    height: 6,
+  },
+  progressText: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 5,
+  },
+  workMilestones: {
+    color: COLORS.TEXT_SECONDARY,
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 16,
+    marginTop: 6,
   },
   row: {
     alignItems: "center",

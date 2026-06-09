@@ -14,35 +14,45 @@ type SettingsRoute =
   | "/(client)/milestones"
   | "/(client)/notifications"
   | "/(client)/payments"
+  | "/(client)/privacy"
   | "/(client)/profile-edit"
   | "/(client)/projects"
+  | "/(client)/terms"
   | "/(engineer)"
   | "/(engineer)/assignments"
   | "/(engineer)/boq"
   | "/(engineer)/messages"
   | "/(engineer)/notifications"
+  | "/(engineer)/privacy"
   | "/(engineer)/profile-edit"
   | "/(engineer)/projects"
+  | "/(engineer)/terms"
   | "/(supervisor)"
   | "/(supervisor)/inspections"
   | "/(supervisor)/messages"
   | "/(supervisor)/notifications"
+  | "/(supervisor)/privacy"
   | "/(supervisor)/profile-edit"
   | "/(supervisor)/progress-review"
+  | "/(supervisor)/terms"
   | "/(supplier)"
   | "/(supplier)/deliveries"
   | "/(supplier)/messages"
   | "/(supplier)/notifications"
+  | "/(supplier)/privacy"
   | "/(supplier)/profile-edit"
   | "/(supplier)/purchase-orders"
   | "/(supplier)/quotes"
   | "/(supplier)/rfqs"
+  | "/(supplier)/terms"
   | "/(site-agent)"
   | "/(site-agent)/daily-report"
   | "/(site-agent)/inventory"
   | "/(site-agent)/messages"
+  | "/(site-agent)/privacy"
   | "/(site-agent)/profile-edit"
-  | "/(site-agent)/receiving";
+  | "/(site-agent)/receiving"
+  | "/(site-agent)/terms";
 
 type Shortcut = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -81,6 +91,24 @@ const roleNotifications: Record<UserRole, SettingsRoute> = {
   supervisor: "/(supervisor)/notifications",
   supplier: "/(supplier)/notifications",
   site_agent: "/(site-agent)",
+};
+
+const rolePrivacy: Record<UserRole, SettingsRoute> = {
+  admin: "/(client)/privacy",
+  client: "/(client)/privacy",
+  engineer: "/(engineer)/privacy",
+  supervisor: "/(supervisor)/privacy",
+  supplier: "/(supplier)/privacy",
+  site_agent: "/(site-agent)/privacy",
+};
+
+const roleTerms: Record<UserRole, SettingsRoute> = {
+  admin: "/(client)/terms",
+  client: "/(client)/terms",
+  engineer: "/(engineer)/terms",
+  supervisor: "/(supervisor)/terms",
+  supplier: "/(supplier)/terms",
+  site_agent: "/(site-agent)/terms",
 };
 
 const roleShortcuts: Record<UserRole, Shortcut[]> = {
@@ -263,6 +291,8 @@ export function SettingsScreen() {
 
         <Group title="Support">
           <MenuRow icon="headset-outline" label="Help Center" value="Support" />
+          <MenuRow icon="shield-checkmark-outline" label="Privacy Policy" value="Read" onPress={() => go(rolePrivacy[role])} />
+          <MenuRow icon="document-text-outline" label="Terms & Conditions" value="Read" onPress={() => go(roleTerms[role])} />
           <MenuRow icon="information-circle-outline" label="App version" value="1.0.0" />
         </Group>
 
